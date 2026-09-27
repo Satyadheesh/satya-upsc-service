@@ -59,7 +59,9 @@ GOOD = {
 
 class Validation(unittest.TestCase):
     def test_gate(self):
-        self.assertEqual(validate_gate({"score": 4, "reason": "x"})["score"], 4)
+        self.assertEqual(validate_gate({"hook": "economy", "score": 4, "reason": "x"})["score"], 4)
+        self.assertEqual(validate_gate({"hook": "none", "score": 4, "reason": "x"})["score"], 1)
+        self.assertEqual(validate_gate({"score": 4, "reason": "x"})["score"], 1)  # missing hook = none
         with self.assertRaises(InvalidOutput):
             validate_gate({"score": 9})
         with self.assertRaises(InvalidOutput):
