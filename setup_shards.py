@@ -18,7 +18,7 @@ MAIN_DB_TOKEN = os.environ.get("SATYA_DB_TOKEN")
 UPSC_DB_URL = os.environ.get("SATYA_UPSC_DB_URL")
 UPSC_DB_TOKEN = os.environ.get("SATYA_UPSC_DB_TOKEN")
 
-BATCH_SIZE = int(os.environ.get("BATCH_SIZE") or 50)
+BATCH_SIZE = int(os.environ.get("BATCH_SIZE") or 100)
 MAX_SHARDS = int(os.environ.get("MAX_SHARDS") or 10)
 LOOKBACK_DAYS = int(os.environ.get("LOOKBACK_DAYS") or 365)
 MAX_SCAN = int(os.environ.get("MAX_SCAN") or 5000)        # rows scanned per run, upper bound
@@ -64,7 +64,7 @@ def main():
         print(f"{PROMPT_VERSION}|{MODEL_NAME} not approved (approved={approved}); run the UPSC Eval workflow. Skipping.")
         main_c.close()
         upsc_c.close()
-        emit([""])
+        emit([""], more=False)
         return
     st_ph = ",".join("?" * len(ELIGIBLE))
 
@@ -154,16 +154,18 @@ def main():
     shards = make_shards(batch, MAX_SHARDS) or [""]
     print(f"scanned={scanned} prefiltered={len(prefiltered)} batch={len(batch)} "
           f"backfill_below={below} shards={len(shards)}")
-    emit(shards)
+    # a full batch means there is backlog left -> the workflow chains another run
+    emit(shards, more=len(batch) >= BATCH_SIZE)
 
 
-def emit(shards):
+def emit(shards, more=False):
     out = os.environ.get("GITHUB_OUTPUT")
+    lines = f"shards={json.dumps(shards)}\nmore={'true' if more else 'false'}\n"
     if out:
         with open(out, "a") as f:
-            f.write(f"shards={json.dumps(shards)}\n")
+            f.write(lines)
     else:
-        print(f"shards={json.dumps(shards)}")
+        print(lines, end="")
 
 
 if __name__ == "__main__":

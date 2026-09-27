@@ -8,7 +8,7 @@ on:
       batch_size:
         description: 'Articles to process in this run (newest unprocessed first)'
         required: false
-        default: '50'
+        default: '100'
       lookback_days:
         description: 'Only consider articles scraped within this many days'
         required: false
@@ -35,6 +35,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       shards: ${{ steps.set-shards.outputs.shards }}
+      more: ${{ steps.set-shards.outputs.more }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -45,7 +46,7 @@ jobs:
         run: python migrate.py
       - id: set-shards
         env:
-          BATCH_SIZE: ${{ github.event.inputs.batch_size || '50' }}
+          BATCH_SIZE: ${{ github.event.inputs.batch_size || '100' }}
           LOOKBACK_DAYS: ${{ github.event.inputs.lookback_days || '365' }}
           FORCE_UNAPPROVED: ${{ github.event.inputs.force || 'false' }}
         run: python setup_shards.py
@@ -91,3 +92,19 @@ jobs:
         env:
           SHARD_DEADLINE_SEC: '15600'   # 4h20m, below the 300-minute job timeout
         run: python upsc_pipeline.py --ids "${{ matrix.shard }}"
+
+  # Keep going while there is backlog: start the next run as soon as this one finishes.
+  # (workflow_dispatch from GITHUB_TOKEN is allowed to trigger workflows; the schedule is only a fallback.)
+  chain:
+    needs: [setup, analyze_articles]
+    if: ${{ !cancelled() && needs.setup.outputs.more == 'true' && needs.analyze_articles.result == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run upsc_pipeline.yml --repo "$GITHUB_REPOSITORY" --ref main \
+            -f batch_size='${{ github.event.inputs.batch_size || '100' }}' \
+            -f lookback_days='${{ github.event.inputs.lookback_days || '365' }}'
