@@ -120,7 +120,7 @@ def main():
                 tags = json.dumps(data.get("relevance_tags", []))
                 
                 upsc_client.execute(
-                    "INSERT INTO upsc_articles (article_id, gs_paper, topic, fact_box, relevance_tags, created_at) VALUES (?, ?, ?, ?, ?, strftime('%s', 'now'))",
+                    "INSERT OR IGNORE INTO upsc_articles (article_id, gs_paper, topic, fact_box, relevance_tags, created_at) VALUES (?, ?, ?, ?, ?, strftime('%s', 'now'))",
                     [article_id, gs_paper, topic, fact_box, tags]
                 )
                 logging.info(f"  [+] Saved as {gs_paper} - {topic}")
