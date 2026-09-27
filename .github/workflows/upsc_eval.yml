@@ -12,16 +12,26 @@ on:
         description: 'Skip the model and re-score the shard outputs of this earlier run id'
         required: false
         default: ''
+      model_repo:
+        description: 'Compare another model (HF repo). Comparison runs never approve for production.'
+        required: false
+        default: ''
+      model_file:
+        description: 'GGUF file in that repo'
+        required: false
+        default: ''
 
 concurrency:
-  group: upsc-eval
+  group: upsc-eval-${{ github.event.inputs.model_file || 'default' }}
   cancel-in-progress: true
 
 env:
   SATYA_UPSC_DB_URL: ${{ secrets.SATYA_UPSC_DB_URL }}
   SATYA_UPSC_DB_TOKEN: ${{ secrets.SATYA_UPSC_DB_TOKEN }}
-  UPSC_MODEL_REPO: bartowski/Qwen2.5-14B-Instruct-GGUF
-  UPSC_MODEL_FILE: Qwen2.5-14B-Instruct-Q4_K_M.gguf
+  # production model (keep in sync with upsc_pipeline.yml); dispatch inputs override for comparisons
+  UPSC_MODEL_REPO: ${{ github.event.inputs.model_repo || 'bartowski/Qwen2.5-14B-Instruct-GGUF' }}
+  UPSC_MODEL_FILE: ${{ github.event.inputs.model_file || 'Qwen2.5-14B-Instruct-Q4_K_M.gguf' }}
+  APPROVE: ${{ github.event.inputs.model_file == '' && '--approve' || '' }}
 
 jobs:
   eval:
@@ -78,7 +88,7 @@ jobs:
         run: python migrate.py 2>&1 | tee migrate.log
       - name: Report and approve
         shell: bash
-        run: python eval/report.py eval_out/*.json --approve --md eval_report.md 2>&1 | tee report.log
+        run: python eval/report.py eval_out/*.json $APPROVE --md eval_report.md 2>&1 | tee report.log
       # Publish the report + raw shard outputs on the eval-reports branch (readable without log access)
       - name: Publish report
         if: ${{ always() }}
