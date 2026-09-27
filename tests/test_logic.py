@@ -69,7 +69,10 @@ class Validation(unittest.TestCase):
         self.assertEqual(g(party_political=True), 1)
         self.assertEqual(g(scope="international_other"), 1)                   # foreign + non-global hook
         self.assertEqual(g(scope="international_other", hook="report_index"), 4)
-        self.assertEqual(g(scope="international_other", hook="report_index", score=3), 2)
+        self.assertEqual(g(scope="international_other", hook="report_index", score=3), 3)  # UN report etc.
+        self.assertEqual(g(scope="international_other", hook="global_affairs", score=3), 2)
+        self.assertEqual(g(hook="court_constitutional", party_political=True), 4)
+        self.assertEqual(g(hook="history_culture", scope="local", score=3), 3)
         self.assertEqual(g(scope="state", score=3), 3)
         v = lambda india: validate_gate({"hook": "law_policy_scheme", "scope": "national", "party_political": False,
                                          "score": 4, "reason": "x"}, india)["score"]

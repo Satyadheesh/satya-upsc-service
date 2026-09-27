@@ -37,7 +37,7 @@ def main():
         r = {"id": c["id"], "title": c["title"], "label": c["label"], "subjects": c["subjects"]}
         try:
             g = an.gate(c["title"], c["body"], c["category"])
-            r.update(score=g["score"], reason=g["reason"])
+            r.update(g)  # score, raw_score, hook, scope, party_political, reason
         except Exception as e:
             r.update(score=-1, reason=f"ERROR {e}")
         print(f"[{i}/{len(cases)}] {c['label']:<10} score={r['score']} {c['title'][:60]}", flush=True)

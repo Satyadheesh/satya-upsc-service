@@ -55,7 +55,7 @@ def main():
          f"| subject accuracy | {pct(len(subj_ok), len(noted))} | ≥ {TARGET_SUBJECT:.0%} |",
          f"| borderline passed | {pct(len(passed(border)), len(border))} | – |",
          f"| errors | {len(errors)} | 0 |",
-         "", "v1 baseline: false positives 64%, recall 82%. v2.0: FP 1%, recall 27%. v2.1: FP 34%, recall 100%. v2.2 (7B): FP 26%, recall 100%.", "",
+         "", "v1 baseline: false positives 64%, recall 82%. v2.0: FP 1%, recall 27%. v2.1: FP 34%, recall 100%. v2.2 (7B): FP 26%, recall 100%. v2.3: Qwen14B FP 21%/recall 91%, Gemma4-12B FP 3%/recall 73%, Gemma4-E4B FP 25%/recall 91%.", "",
          "### By threshold", "| keep score ≥ | FP on `no` | recall on `yes` | borderline kept |", "|---|---|---|---|",
          *[f"| {t}{' (current)' if t == smin else ''} | {pct(sum(r['score'] >= t for r in no), len(no))} | "
            f"{pct(sum(r['score'] >= t for r in yes), len(yes))} | {pct(sum(r['score'] >= t for r in border), len(border))} |"

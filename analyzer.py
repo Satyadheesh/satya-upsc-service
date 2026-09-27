@@ -10,7 +10,7 @@ import re
 
 from syllabus import EXAM_TYPES, SYLLABUS, paper_of, prompt_tree
 
-PROMPT_VERSION = "v2.3"
+PROMPT_VERSION = "v2.4"
 MODEL_REPO = os.environ.get("UPSC_MODEL_REPO", "bartowski/Qwen2.5-14B-Instruct-GGUF")
 MODEL_FILENAME = os.environ.get("UPSC_MODEL_FILE", "Qwen2.5-14B-Instruct-Q4_K_M.gguf")
 MODEL_NAME = MODEL_FILENAME.rsplit(".", 1)[0]
@@ -175,19 +175,22 @@ def validate_gate(data, india=True):
         scope = "international_other"  # text never mentions India: trust that over the model
     political = data.get("party_political") is True
     cap, why = 5, ""
+    official = hook in {"court_constitutional", "constitutional_authority"}
     if hook == "none":
         cap, why = 1, "no hook"
-    elif political:
+    elif political and not official:
+        # a court case or an ECI/President action stays useful even when parties are involved
         cap, why = 1, "party-political"
-    elif scope == "local":
+    elif scope == "local" and hook != "history_culture":
+        # anniversaries/culture are often reported via one local event
         cap, why = 1, "local"
     elif scope == "international_other" and hook not in GLOBAL_HOOKS:
         cap, why = 1, "foreign, no India link"
-    elif scope == "international_other":
-        cap, why = (score if score >= 4 else 2), "foreign: needs 4+"
+    elif scope == "international_other" and hook == "global_affairs":
+        cap, why = (score if score >= 4 else 2), "foreign politics: needs 4+"
     capped = min(score, cap)
     tag = f"{hook}/{scope}" + (f" capped:{why}" if capped < score else "")
-    return {"score": capped, "raw_score": score, "hook": hook, "scope": scope,
+    return {"score": capped, "raw_score": score, "hook": hook, "scope": scope, "party_political": political,
             "reason": _clip(f"{tag}: {data.get('reason') or ''}", 160)}
 
 
