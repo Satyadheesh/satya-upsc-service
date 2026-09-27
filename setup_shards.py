@@ -38,6 +38,9 @@ def main():
             chunk = article_ids[i:i + chunk_size]
             shards.append(",".join(map(str, chunk)))
     
+    main_client.close()
+    upsc_client.close()
+
     if not shards:
         shards = [""] # Empty shard so the matrix doesn't fail completely, though it will do nothing
 

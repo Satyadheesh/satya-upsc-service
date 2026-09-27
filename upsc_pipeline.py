@@ -130,6 +130,8 @@ def main():
         except Exception as e:
             logging.error(f"  [!] Failed to process article {article_id}: {e}")
 
+    main_client.close()
+    upsc_client.close()
     logging.info("Shard complete.")
 
 if __name__ == "__main__":
