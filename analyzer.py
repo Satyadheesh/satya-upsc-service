@@ -6,13 +6,29 @@ unit-tested without a model.
 """
 import json
 import os
+import re
 
 from syllabus import EXAM_TYPES, SYLLABUS, paper_of, prompt_tree
 
-PROMPT_VERSION = "v2.2"
-MODEL_REPO = os.environ.get("UPSC_MODEL_REPO", "bartowski/Qwen2.5-7B-Instruct-GGUF")
-MODEL_FILENAME = os.environ.get("UPSC_MODEL_FILE", "Qwen2.5-7B-Instruct-Q4_K_M.gguf")
+PROMPT_VERSION = "v2.3"
+MODEL_REPO = os.environ.get("UPSC_MODEL_REPO", "bartowski/Qwen2.5-14B-Instruct-GGUF")
+MODEL_FILENAME = os.environ.get("UPSC_MODEL_FILE", "Qwen2.5-14B-Instruct-Q4_K_M.gguf")
 MODEL_NAME = MODEL_FILENAME.rsplit(".", 1)[0]
+
+# Deterministic India-link check: the model often calls foreign stories "national".
+INDIA_RE = re.compile(
+    r"\b(india|indian|indians|new delhi|delhi|lok sabha|rajya sabha|niti aayog|rbi|isro|drdo|"
+    r"union (?:minister|government|cabinet|budget)|centre's|crore|lakh|rs\.? ?\d|"
+    r"andhra|arunachal|assam|bihar|chhattisgarh|goa|gujarat|haryana|himachal|jharkhand|karnataka|"
+    r"kerala|madhya pradesh|maharashtra|manipur|meghalaya|mizoram|nagaland|odisha|punjab|rajasthan|"
+    r"sikkim|tamil nadu|telangana|tripura|uttar pradesh|uttarakhand|west bengal|jammu|kashmir|ladakh|"
+    r"puducherry|chandigarh|lakshadweep|andaman|mumbai|kolkata|chennai|bengaluru|hyderabad|"
+    r"ahmedabad|pune|lucknow|patna|bhopal|jaipur|guwahati|thiruvananthapuram|kochi|imphal)\b|₹", re.I)
+
+
+def india_link(title, body):
+    return bool(INDIA_RE.search(f"{title}\n{(body or '')[:4000]}"))
+
 
 NODE_OWNER = {n: s for s, (_, _, nodes) in SYLLABUS.items() for n in nodes}
 POINTER_TYPES = ["constitution", "act_bill", "scheme", "institution", "report_index", "place",
@@ -146,7 +162,7 @@ def _clip(s, n):
     return s if len(s) <= n else s[: n - 1].rstrip() + "…"
 
 
-def validate_gate(data):
+def validate_gate(data, india=True):
     try:
         score = int(data["score"])
     except (KeyError, TypeError, ValueError):
@@ -155,6 +171,8 @@ def validate_gate(data):
         raise InvalidOutput(f"score out of range: {score}")
     hook = data.get("hook") if data.get("hook") in HOOKS else "none"
     scope = data.get("scope") if data.get("scope") in SCOPES else "national"
+    if not india:
+        scope = "international_other"  # text never mentions India: trust that over the model
     political = data.get("party_political") is True
     cap, why = 5, ""
     if hook == "none":
@@ -241,7 +259,9 @@ class Analyzer:
 
     def gate(self, title, body, category):
         user = article_prompt(title, body, category)
-        return self._retry(lambda: self._call(GATE_SYSTEM, user, GATE_SCHEMA, 60), validate_gate)
+        india = india_link(title, body)
+        return self._retry(lambda: self._call(GATE_SYSTEM, user, GATE_SCHEMA, 80),
+                           lambda d: validate_gate(d, india))
 
     def notes(self, title, body, category):
         user = article_prompt(title, body, category)

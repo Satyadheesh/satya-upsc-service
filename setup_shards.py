@@ -10,7 +10,7 @@ import time
 
 import libsql_client
 
-from analyzer import PROMPT_VERSION
+from analyzer import MODEL_NAME, PROMPT_VERSION
 from selection import MAX_ATTEMPTS, is_done, make_shards, prefilter
 
 MAIN_DB_URL = os.environ.get("SATYA_DB_URL")
@@ -60,8 +60,8 @@ def main():
     cutoff = now - LOOKBACK_DAYS * 86400
 
     approved = get_meta(upsc_c, "approved_prompt")
-    if approved != PROMPT_VERSION and not FORCE:
-        print(f"Prompt {PROMPT_VERSION} not approved (approved={approved}); run the UPSC Eval workflow. Skipping.")
+    if approved != f"{PROMPT_VERSION}|{MODEL_NAME}" and not FORCE:
+        print(f"{PROMPT_VERSION}|{MODEL_NAME} not approved (approved={approved}); run the UPSC Eval workflow. Skipping.")
         main_c.close()
         upsc_c.close()
         emit([""])

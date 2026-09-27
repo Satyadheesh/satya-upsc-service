@@ -29,7 +29,7 @@ def main():
     k, n = map(int, a.shard.split("/"))
     cases = load_cases()[k::n]
 
-    from analyzer import PROMPT_VERSION, Analyzer, download_model
+    from analyzer import MODEL_NAME, PROMPT_VERSION, Analyzer, download_model
     an = Analyzer(download_model(a.model_dir), n_threads=os.cpu_count())
 
     results, t0 = [], time.time()
@@ -55,7 +55,7 @@ def main():
 
     os.makedirs(os.path.dirname(a.out) or ".", exist_ok=True)
     with open(a.out, "w") as f:
-        json.dump({"prompt_version": PROMPT_VERSION, "score_min": a.score_min,
+        json.dump({"prompt_version": PROMPT_VERSION, "model": MODEL_NAME, "score_min": a.score_min,
                    "seconds": round(time.time() - t0), "results": results}, f, ensure_ascii=False)
 
 

@@ -31,6 +31,8 @@ def main():
     if not runs:
         raise SystemExit("no eval outputs")
     pv, smin = runs[0]["prompt_version"], runs[0]["score_min"]
+    model = runs[0].get("model", "?")
+    approval = f"{pv}|{model}"
     res = [r for run in runs for r in run["results"]]
     by = lambda lab: [r for r in res if r["label"] == lab]
     passed = lambda rs: [r for r in rs if r["score"] >= smin]
@@ -46,14 +48,14 @@ def main():
     subj = len(subj_ok) / max(1, len(noted))
     ok = fp_rate <= TARGET_FP and recall >= TARGET_RECALL and subj >= TARGET_SUBJECT
 
-    L = [f"## UPSC eval — prompt {pv} (score ≥ {smin}) — {'✅ PASS' if ok else '❌ FAIL'}", "",
+    L = [f"## UPSC eval — prompt {pv}, {model} (score ≥ {smin}) — {'✅ PASS' if ok else '❌ FAIL'}", "",
          "| metric | result | target |", "|---|---|---|",
          f"| false positives on `no` | {pct(len(fp), len(no))} | ≤ {TARGET_FP:.0%} |",
          f"| recall on `yes` | {pct(len(tp), len(yes))} | ≥ {TARGET_RECALL:.0%} |",
          f"| subject accuracy | {pct(len(subj_ok), len(noted))} | ≥ {TARGET_SUBJECT:.0%} |",
          f"| borderline passed | {pct(len(passed(border)), len(border))} | – |",
          f"| errors | {len(errors)} | 0 |",
-         "", "v1 baseline: false positives 64%, recall 82%. v2.0: FP 1%, recall 27%. v2.1: FP 34%, recall 100%.", "",
+         "", "v1 baseline: false positives 64%, recall 82%. v2.0: FP 1%, recall 27%. v2.1: FP 34%, recall 100%. v2.2 (7B): FP 26%, recall 100%.", "",
          "### By threshold", "| keep score ≥ | FP on `no` | recall on `yes` | borderline kept |", "|---|---|---|---|",
          *[f"| {t}{' (current)' if t == smin else ''} | {pct(sum(r['score'] >= t for r in no), len(no))} | "
            f"{pct(sum(r['score'] >= t for r in yes), len(yes))} | {pct(sum(r['score'] >= t for r in border), len(border))} |"
@@ -85,8 +87,8 @@ def main():
 
     if "--approve" in sys.argv and ok:
         from turso_http import execute
-        execute([("INSERT OR REPLACE INTO upsc_meta (key, value) VALUES ('approved_prompt', ?)", [pv])])
-        print(f"\nApproved prompt {pv} for production.")
+        execute([("INSERT OR REPLACE INTO upsc_meta (key, value) VALUES ('approved_prompt', ?)", [approval])])
+        print(f"\nApproved {approval} for production.")
     sys.exit(0 if ok else 1)
 
 

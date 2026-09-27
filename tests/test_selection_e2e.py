@@ -41,8 +41,8 @@ class E2E(unittest.TestCase):
         import setup_shards
         self.mod = importlib.reload(setup_shards)
         self.upsc = upsc
-        from analyzer import PROMPT_VERSION
-        upsc.execute("INSERT INTO upsc_meta VALUES ('approved_prompt', ?)", [PROMPT_VERSION])
+        from analyzer import MODEL_NAME, PROMPT_VERSION
+        upsc.execute("INSERT INTO upsc_meta VALUES ('approved_prompt', ?)", [f"{PROMPT_VERSION}|{MODEL_NAME}"])
         upsc.commit()
 
     def test_unapproved_prompt_does_nothing(self):

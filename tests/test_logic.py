@@ -71,6 +71,17 @@ class Validation(unittest.TestCase):
         self.assertEqual(g(scope="international_other", hook="report_index"), 4)
         self.assertEqual(g(scope="international_other", hook="report_index", score=3), 2)
         self.assertEqual(g(scope="state", score=3), 3)
+        v = lambda india: validate_gate({"hook": "law_policy_scheme", "scope": "national", "party_political": False,
+                                         "score": 4, "reason": "x"}, india)["score"]
+        self.assertEqual(v(False), 1)  # "national" but text never mentions India
+
+    def test_india_link(self):
+        from analyzer import india_link
+        self.assertTrue(india_link("Kerala HC order", ""))
+        self.assertTrue(india_link("Scheme gets Rs 500 crore", ""))
+        self.assertTrue(india_link("PM visits Sri Lanka", "Prime Minister of India said"))
+        self.assertFalse(india_link("NSW considering plan to halve power of ebikes", "Sydney council said"))
+        self.assertFalse(india_link("Hondurans vote amid Trump threat", "Tegucigalpa"))
         with self.assertRaises(InvalidOutput):
             validate_gate({"score": 9})
         with self.assertRaises(InvalidOutput):
