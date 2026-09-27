@@ -20,7 +20,7 @@ MAIN_DB_TOKEN = os.environ.get("SATYA_DB_TOKEN")
 UPSC_DB_URL = os.environ.get("SATYA_UPSC_DB_URL")
 UPSC_DB_TOKEN = os.environ.get("SATYA_UPSC_DB_TOKEN")
 
-BATCH_SIZE = 10
+BATCH_SIZE = int(os.environ.get('BATCH_SIZE', 10))
 
 SYSTEM_PROMPT = """You are a master UPSC Civil Services Examination coach.
 Analyze the provided Indian news article and extract relevant facts for a UPSC aspirant.
