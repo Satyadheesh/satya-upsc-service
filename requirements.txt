@@ -1,0 +1,4 @@
+libsql-client
+llama-cpp-python
+huggingface-hub
+python-dotenv
