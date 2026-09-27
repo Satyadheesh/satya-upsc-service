@@ -62,6 +62,15 @@ class Validation(unittest.TestCase):
         self.assertEqual(validate_gate({"hook": "economy", "score": 4, "reason": "x"})["score"], 4)
         self.assertEqual(validate_gate({"hook": "none", "score": 4, "reason": "x"})["score"], 1)
         self.assertEqual(validate_gate({"score": 4, "reason": "x"})["score"], 1)  # missing hook = none
+        g = lambda **k: validate_gate({"hook": "law_policy_scheme", "scope": "national", "party_political": False,
+                                       "score": 4, "reason": "x", **k})["score"]
+        self.assertEqual(g(), 4)
+        self.assertEqual(g(scope="local"), 1)
+        self.assertEqual(g(party_political=True), 1)
+        self.assertEqual(g(scope="international_other"), 1)                   # foreign + non-global hook
+        self.assertEqual(g(scope="international_other", hook="report_index"), 4)
+        self.assertEqual(g(scope="international_other", hook="report_index", score=3), 2)
+        self.assertEqual(g(scope="state", score=3), 3)
         with self.assertRaises(InvalidOutput):
             validate_gate({"score": 9})
         with self.assertRaises(InvalidOutput):

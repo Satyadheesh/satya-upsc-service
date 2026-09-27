@@ -9,7 +9,7 @@ import os
 
 from syllabus import EXAM_TYPES, SYLLABUS, paper_of, prompt_tree
 
-PROMPT_VERSION = "v2.1"
+PROMPT_VERSION = "v2.2"
 MODEL_REPO = os.environ.get("UPSC_MODEL_REPO", "bartowski/Qwen2.5-7B-Instruct-GGUF")
 MODEL_FILENAME = os.environ.get("UPSC_MODEL_FILE", "Qwen2.5-7B-Instruct-Q4_K_M.gguf")
 MODEL_NAME = MODEL_FILENAME.rsplit(".", 1)[0]
@@ -50,21 +50,39 @@ Hook is "none" for: individual crimes/arrests/accidents/deaths, party politics (
 protests, campaigns, candidates, seat contests, leadership tussles), routine local administration,
 entertainment, celebrities, sports, company news, and another country's domestic crime or society.
 
-Step 2 - score how much an aspirant needs it:
+Step 2 - scope: the level at which the SUBJECT matters (not where the event happened;
+a national anniversary observed in one city is "national"):
+- local: one city, district, municipality, university, temple, company or project
+- state: a state government, legislature, High Court or a state-wide issue
+- national: India-wide law, institution, policy, security or social issue
+- international_india: involves India or Indians (visits, deals, aid, diaspora, trade)
+- international_other: another country's affairs with no India involvement
+
+Step 3 - party_political: true if the story is mainly a politician or party criticising rivals,
+making claims or promises, campaigning, or commenting on elections/candidates. False for
+official actions (a law passed, an order issued, a court or ECI decision, a visit or agreement).
+
+Step 4 - score how much an aspirant needs it:
 5 = certain to be useful (landmark ruling/law/scheme, major summit or agreement, key report, ISRO/DRDO milestone)
 4 = clearly useful (important development under the hook, national relevance)
 3 = useful fact or example for the hook (state-level policy, a first/record, ongoing issue update)
 2 = weak link to the hook
 0-1 = hook is none
 
-Reply JSON only: {"hook": "<hook>", "score": <0-5>, "reason": "<max 12 words>"}"""
+Reply JSON only: {"hook": "<hook>", "scope": "<scope>", "party_political": <true|false>, "score": <0-5>, "reason": "<max 12 words>"}"""
+
+SCOPES = ["local", "state", "national", "international_india", "international_other"]
+# hooks that can matter even with no India involvement
+GLOBAL_HOOKS = {"global_affairs", "report_index", "environment", "science_tech"}
 
 GATE_SCHEMA = {
     "type": "object",
     "properties": {"hook": {"type": "string", "enum": list(HOOKS)},
+                   "scope": {"type": "string", "enum": SCOPES},
+                   "party_political": {"type": "boolean"},
                    "score": {"type": "integer", "enum": [0, 1, 2, 3, 4, 5]},
                    "reason": {"type": "string"}},
-    "required": ["hook", "score", "reason"],
+    "required": ["hook", "scope", "party_political", "score", "reason"],
 }
 
 # ------------------------------------------------------------------ stage 2
@@ -75,6 +93,8 @@ Map the news to exactly ONE primary syllabus node from this fixed tree (use the 
 Fields:
 - exam_type: "prelims" (mainly facts), "mains" (mainly analysis) or "both".
 - subject, node: primary keys from the tree above. "ir" is ONLY for India's foreign relations and global bodies, never for domestic news. "neighbourhood" means SAARC neighbours + China, Myanmar, Afghanistan; other countries are "bilateral".
+  "places_in_news" only when the location itself is the fact (a new site, a map question); security,
+  border or conflict news goes under "security", never geography.
 - secondary: 0-2 other {{"subject","node"}} pairs if the item clearly also fits another paper.
 - why_in_news: one line saying what happened and why it matters for the exam, with the key actor (e.g. "Supreme Court struck down electoral bonds as violating the right to information").
 - fact_box: 2-3 sentences of hard facts from the article: who, what, numbers, dates, bodies.
@@ -84,7 +104,8 @@ Fields:
   institution = an Indian body/agency; international_org = a foreign or multilateral body/agreement;
   report_index = report or ranking and its publisher; place = location with state/country/river;
   species_environment; sci_tech; person_post = a constitutional or official post; data_fact = a number.
-- mains_question: one UPSC-style Mains question (e.g. "Critically examine ...", "Discuss ...") in <= 30 words.
+- mains_question: one UPSC-style Mains question (e.g. "Critically examine ...", "Discuss ...") in <= 30 words,
+  about the underlying issue or institution, never about a person's career or image.
 - mains_dimensions: 2-4 short angles to cover in an answer (e.g. "federal concerns", "fiscal cost", "way forward: ...").
 - keywords: 3-6 answer-writing terms.
 
@@ -133,9 +154,23 @@ def validate_gate(data):
     if not 0 <= score <= 5:
         raise InvalidOutput(f"score out of range: {score}")
     hook = data.get("hook") if data.get("hook") in HOOKS else "none"
+    scope = data.get("scope") if data.get("scope") in SCOPES else "national"
+    political = data.get("party_political") is True
+    cap, why = 5, ""
     if hook == "none":
-        score = min(score, 1)
-    return {"score": score, "hook": hook, "reason": _clip(f"{hook}: {data.get('reason') or ''}", 140)}
+        cap, why = 1, "no hook"
+    elif political:
+        cap, why = 1, "party-political"
+    elif scope == "local":
+        cap, why = 1, "local"
+    elif scope == "international_other" and hook not in GLOBAL_HOOKS:
+        cap, why = 1, "foreign, no India link"
+    elif scope == "international_other":
+        cap, why = (score if score >= 4 else 2), "foreign: needs 4+"
+    capped = min(score, cap)
+    tag = f"{hook}/{scope}" + (f" capped:{why}" if capped < score else "")
+    return {"score": capped, "raw_score": score, "hook": hook, "scope": scope,
+            "reason": _clip(f"{tag}: {data.get('reason') or ''}", 160)}
 
 
 def validate_notes(data):

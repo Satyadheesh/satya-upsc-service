@@ -53,7 +53,8 @@ jobs:
 
   report:
     needs: eval
-    if: ${{ always() }}
+    # after a finished eval, or when re-scoring an earlier run (eval skipped); not after a cancel
+    if: ${{ !cancelled() && (needs.eval.result == 'success' || github.event.inputs.reuse_run != '') }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
