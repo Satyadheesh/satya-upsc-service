@@ -11,8 +11,8 @@ import re
 from syllabus import EXAM_TYPES, SYLLABUS, paper_of, prompt_tree
 
 PROMPT_VERSION = "v2.4"
-MODEL_REPO = os.environ.get("UPSC_MODEL_REPO", "bartowski/Qwen2.5-14B-Instruct-GGUF")
-MODEL_FILENAME = os.environ.get("UPSC_MODEL_FILE", "Qwen2.5-14B-Instruct-Q4_K_M.gguf")
+MODEL_REPO = os.environ.get("UPSC_MODEL_REPO", "unsloth/gemma-4-12b-it-GGUF")
+MODEL_FILENAME = os.environ.get("UPSC_MODEL_FILE", "gemma-4-12b-it-Q4_K_M.gguf")
 MODEL_NAME = MODEL_FILENAME.rsplit(".", 1)[0]
 
 # Deterministic India-link check: the model often calls foreign stories "national".
