@@ -24,7 +24,9 @@ def pct(a, b):
 
 
 def main():
-    files = [f for f in sys.argv[1:] if not f.startswith("--")]
+    args = sys.argv[1:]
+    md_out = args[args.index("--md") + 1] if "--md" in args else None
+    files = [f for f in args if f.endswith(".json")]
     runs = [json.load(open(f)) for f in files]
     if not runs:
         raise SystemExit("no eval outputs")
@@ -74,6 +76,9 @@ def main():
         L += ["### Errors", *[f"- {r['title'][:80]}: {r.get('reason') or r.get('notes_error')}" for r in errors]]
     md = "\n".join(L)
     print(md)
+    if md_out:
+        with open(md_out, "w") as f:
+            f.write(md + "\n")
     if os.environ.get("GITHUB_STEP_SUMMARY"):
         with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
             f.write(md + "\n")
