@@ -1,0 +1,108 @@
+## UPSC eval — prompt v2.4, gemma-4-12b-it-Q4_K_M (score ≥ 3) — ✅ PASS
+
+| metric | result | target |
+|---|---|---|
+| false positives on `no` | 3/87 (3%) | ≤ 10% |
+| recall on `yes` | 10/11 (91%) | ≥ 80% |
+| subject accuracy | 10/10 (100%) | ≥ 80% |
+| borderline passed | 5/22 (23%) | – |
+| errors | 0 | 0 |
+
+v1 baseline: false positives 64%, recall 82%. v2.0: FP 1%, recall 27%. v2.1: FP 34%, recall 100%. v2.2 (7B): FP 26%, recall 100%. v2.3: Qwen14B FP 21%/recall 91%, Gemma4-12B FP 3%/recall 73%, Gemma4-E4B FP 25%/recall 91%.
+
+### By threshold
+| keep score ≥ | FP on `no` | recall on `yes` | borderline kept |
+|---|---|---|---|
+| 2 | 19/87 (22%) | 10/11 (91%) | 11/22 (50%) |
+| 3 (current) | 3/87 (3%) | 10/11 (91%) | 5/22 (23%) |
+| 4 | 0/87 (0%) | 4/11 (36%) | 0/22 (0%) |
+
+### False positives
+- s=3 APCRDA project office bags IGBC Net Zero Energy rating - The Hindu — _environment/state: First government building in India to receive IGBC Net Zero Energy Rating._
+- s=3 Kerala government orders rollback of UGC, AICTE incentive increments - The Hindu — _law_policy_scheme/state: State government policy on academic pay revisions and fiscal oversight._
+- s=3 KFRI signs MoU with Odisha Bamboo Development Agency - The Hindu — _law_policy_scheme/national: Inter-state cooperation on bamboo research, technology transfer, and livelihood schemes._
+
+### Missed
+- s=1 Hyderabad’s NTR Stadium turns sea of faith as thousands observe 350th martyrdom of Guru Te — _history_culture/local: Local religious event; minor relevance for history/culture section._
+
+### Sample notes
+**Droupadi Murmu becomes first President to address Odisha Assembly - The Hindu** — GS2 › polity › executive ✅
+- Why: President Droupadi Murmu became the first President of India to address the Odisha Legislative Assembly, highlighting the role of the President in state legislative proceedings.
+- [person_post] The President of India is the head of the Union and holds the highest constitutional office.
+- [data_fact] President Murmu was the first woman MLA from Odisha to be adjudged the best legislator in 2007.
+- [scheme] Subhadra scheme: A state-specific initiative in Odisha for women's empowerment.
+- [data_fact] Odisha provides an additional Rs. 800 per quintal as an input subsidy over and above the MSP for paddy.
+- Q: Discuss the significance of the President's role in the legislative process and the importance of state-led empowerment schemes like the Subhadra scheme in achieving inclusive growth.
+
+**Jakarta overtakes Tokyo as world’s most populous city, according to UN | Indonesia | The G** — GS1 › society › urbanisation ✅
+- Why: The UN Department of Economic and Social Affairs released the World Urbanisation Prospects 2025 report, identifying Jakarta as the world's most populous city due to new methodology.
+- [data_fact] Jakarta population: 42 million (UN World Urbanisation Prospects 2025)
+- [data_fact] Tokyo population: 33 million (defined as a megalopolis including Saitama, Chiba, and Kanagawa)
+- [data_fact] Megacities: Defined as urban areas with at least 10 million inhabitants
+- [data_fact] Global urban population: Nearly 50% of the world's 8.2 billion people
+- [data_fact] Asia's dominance: 9 out of the 10 most populated cities are located in Asia
+- Q: Discuss the challenges and opportunities associated with the rapid growth of megacities in Asia, with special reference to urban planning and social equity.
+
+**India-UAE FTA Talks: Market access, gold quota and data sharing reviewed under CEPA - The ** — GS2 › ir › bilateral ✅
+- Why: India and the UAE held a joint committee meeting to review the Comprehensive Economic Partnership Agreement (CEPA) to enhance trade and regulatory cooperation.
+- [international_org] CEPA: Comprehensive Economic Partnership Agreement between India and the UAE.
+- [data_fact] Bilateral trade between India and UAE crossed $100 billion in 2024-25.
+- [data_fact] Target for non-oil and non-precious metal trade: $100 billion by 2030.
+- [institution] APEDA: Agricultural and Processed Food Products Export Development Authority.
+- Q: Discuss the significance of Comprehensive Economic Partnership Agreements (CEPA) in diversifying India's trade basket and strengthening its position in the global economy.
+
+**Proposal for new design of border fencing under consideration of Centre: BSF IG - The Hind** — GS3 › security › border_management ✅
+- Why: The BSF IG announced that the Ministry of Home Affairs is considering a proposal for a new design of barbed wire fencing along the India-Bangladesh border to replace aging infrastructure.
+- [data_fact] India-Bangladesh international border length is 4,096 km
+- [data_fact] Tripura shares 856 km of its border with Bangladesh
+- [institution] BSF (Border Security Force) operates under the Ministry of Home Affairs (MHA)
+- [institution] BGB (Bangladesh Border Guard) is the counterpart agency on the Bangladesh side
+- Q: Discuss the challenges and technological requirements in strengthening India's border management along the Bangladesh frontier to curb smuggling and illegal migration.
+
+**What is going wrong in Tamil Nadu’s SIR? | Focus Tamil Nadu - The Hindu** — GS2 › polity › elections ✅
+- Why: Reports indicate systemic issues in Tamil Nadu’s Special Intensive Revision (SIR) process, potentially leading to the disenfranchisement of genuine voters due to procedural lapses.
+- [institution] The Election Commission of India (ECI) is the constitutional body responsible for the preparation and revision of electoral rolls.
+- [data_fact] The Special Intensive Revision (SIR) is a periodic exercise to ensure the accuracy of the voter list.
+- [person_post] The Chief Electoral Officer (CEO) oversees the implementation of electoral roll revisions at the state level.
+- Q: Discuss the importance of an accurate and inclusive electoral roll in ensuring the integrity of the democratic process in India.
+
+**Manipur's violence-hit people, seeking to return home, clash with security forces - The Hi** — GS3 › security › lwe ✅
+- Why: Clashes between internally displaced persons (IDPs) and security forces in Manipur highlight the ongoing challenges of restoring normalcy and managing ethnic violence.
+- [place] Imphal East and Senapati are districts in the state of Manipur.
+- [data_fact] Ethnic violence in Manipur began in May 2023, leading to large-scale internal displacement.
+- [data_fact] The Sangai Festival, which began on November 21, 2025, coincided with the recent escalations.
+- Q: Analyze the challenges in managing internal security and rehabilitating internally displaced persons (IDPs) in conflict-affected regions like Manipur.
+
+**EC tells Supreme Court Centre’s citizenship scrutiny powers are limited - The Hindu** — GS2 › polity › constitution ✅
+- Why: The Election Commission of India (ECI) submitted an affidavit to the Supreme Court clarifying that its power to scrutinize citizenship for electoral rolls is distinct from the Union Government's exclusive power to termi…
+- [constitution] Article 324: Empowers the Election Commission to superintend, direct, and control the preparation of electoral rolls.
+- [constitution] Article 326: Establishes adult suffrage and the requirement of citizenship as a precondition for voting.
+- [act_bill] Citizenship Act, 1955: Section 9 deals with the termination of Indian citizenship upon voluntary acquisition of foreign citizenship.
+- [act_bill] Representation of the People Act, 1950: Governs the preparation and revision of electoral rolls.
+- Q: Examine the constitutional balance between the Election Commission's plenary powers under Article 324 and the Union Government's exclusive jurisdiction over citizenship status.
+
+**PM Modi calls Sri Lankan President to offer continued support with cyclone relief - The Hi** — GS2 › ir › neighbourhood ✅
+- Why: PM Modi assured Sri Lanka of continued support under 'Operation Sagar Bandhu' to provide humanitarian assistance and disaster relief (HADR) following Cyclone Ditwah.
+- [institution] Operation Sagar Bandhu: India's specific relief and rescue operation for Sri Lanka.
+- [data_fact] India has provided 53 tonnes of relief material to Sri Lanka as of December 1, 2025.
+- [sci_tech] INS Vikrant and INS Udaygiri are Indian Navy vessels used for HADR operations.
+- [place] Cyclone Ditwah: The specific cyclone causing devastation in Sri Lanka.
+- Q: Discuss the significance of India's 'Neighborhood First' policy in the context of Humanitarian Assistance and Disaster Relief (HADR) operations in South Asia.
+
+**Over 68% SIR enumeration forms digitised: ECI - The Hindu** — GS2 › polity › elections ✅
+- Why: The Election Commission of India (ECI) reported the progress of digitising enumeration forms during the second phase of the Special Intensive Revision (SIR) of electoral rolls.
+- [institution] ECI: The constitutional body responsible for administering elections to Parliament and State Legislatures.
+- [data_fact] SIR Phase 2 covers 12 States/UTs including Chhattisgarh, Goa, Gujarat, Kerala, Madhya Pradesh, Rajasthan, Tamil Nadu, Uttar Pradesh, West Bengal, Puducherry, Andaman and Nicarobar Islands, and Laksha…
+- [sci_tech] The digitisation process utilizes dedicated mobile applications for real-time data uploading by Booth Level Officers (BLOs).
+- Q: Discuss how the digitisation of electoral rolls contributes to the integrity of the democratic process and the 'One Nation, One Election' discourse.
+
+**Putin is coming to India in December 2025: Which other Russian presidents visited India, i** — GS2 › ir › bilateral ✅
+- Why: President Vladimir Putin is scheduled to visit India in December 2025 for the 23rd India-Russia Annual Summit to review strategic and defense cooperation.
+- [data_fact] The 2025 visit marks the 23rd India-Russia Annual Summit.
+- [sci_tech] Key defense projects for review include the S-400 missile system and Su-57 fighter jets.
+- [person_post] Vladimir Putin assumed the role of Acting President of Russia on December 31, 1999.
+- [data_fact] The diplomatic relationship is characterized as a 'Special and Privileged Strategic Partnership'.
+- Q: Analyze the evolution of the India-Russia 'Special and Privileged Strategic Partnership' in the context of shifting global geopolitical dynamics.
+
+
+Approved v2.4|gemma-4-12b-it-Q4_K_M for production.
