@@ -16,8 +16,8 @@ def main():
         print("Missing DB credentials")
         return
 
-    main_client = libsql_client.create_client_sync(url=MAIN_DB_URL, auth_token=MAIN_DB_TOKEN)
-    upsc_client = libsql_client.create_client_sync(url=UPSC_DB_URL, auth_token=UPSC_DB_TOKEN)
+    main_client = libsql_client.create_client_sync(url=MAIN_DB_URL.replace('libsql://', 'https://'), auth_token=MAIN_DB_TOKEN)
+    upsc_client = libsql_client.create_client_sync(url=UPSC_DB_URL.replace('libsql://', 'https://'), auth_token=UPSC_DB_TOKEN)
 
     res = upsc_client.execute("SELECT last_article_id FROM upsc_checkpoint WHERE id = 1")
     last_id = res.rows[0][0] if res.rows else 0

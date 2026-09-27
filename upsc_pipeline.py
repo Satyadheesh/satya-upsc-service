@@ -52,8 +52,8 @@ def main():
         logging.error("Missing database environment variables.")
         return
 
-    main_client = libsql_client.create_client_sync(url=MAIN_DB_URL, auth_token=MAIN_DB_TOKEN)
-    upsc_client = libsql_client.create_client_sync(url=UPSC_DB_URL, auth_token=UPSC_DB_TOKEN)
+    main_client = libsql_client.create_client_sync(url=MAIN_DB_URL.replace('libsql://', 'https://'), auth_token=MAIN_DB_TOKEN)
+    upsc_client = libsql_client.create_client_sync(url=UPSC_DB_URL.replace('libsql://', 'https://'), auth_token=UPSC_DB_TOKEN)
 
     if not args.ids:
         logging.info("No IDs provided, nothing to process in this shard.")
