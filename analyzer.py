@@ -9,7 +9,7 @@ import os
 
 from syllabus import EXAM_TYPES, SYLLABUS, paper_of, prompt_tree
 
-PROMPT_VERSION = "v2.0"
+PROMPT_VERSION = "v2.1"
 MODEL_REPO = os.environ.get("UPSC_MODEL_REPO", "bartowski/Qwen2.5-7B-Instruct-GGUF")
 MODEL_FILENAME = os.environ.get("UPSC_MODEL_FILE", "Qwen2.5-7B-Instruct-Q4_K_M.gguf")
 MODEL_NAME = MODEL_FILENAME.rsplit(".", 1)[0]
@@ -19,30 +19,52 @@ POINTER_TYPES = ["constitution", "act_bill", "scheme", "institution", "report_in
                  "species_environment", "sci_tech", "international_org", "person_post", "data_fact"]
 
 # ------------------------------------------------------------------ stage 1
-GATE_SYSTEM = """You are a strict editor for UPSC Civil Services (CSE) current affairs.
-Decide if an aspirant NEEDS this news item for Prelims or Mains. Most news is NOT useful; be stingy.
+# How news shows up in UPSC papers. The model must name one before scoring; "none" caps the score.
+HOOKS = {
+    "constitutional_authority": "action/statement of a constitutional post or body (President, Governor, ECI, CAG, Finance Commission, UPSC, Speaker) incl. firsts and records",
+    "court_constitutional": "Supreme Court / High Court hearing or ruling on rights, federalism, elections, citizenship, environment, governance",
+    "law_policy_scheme": "new or amended law, bill, rule, central/state scheme, regulator decision (RBI, SEBI, TRAI...)",
+    "elections_process": "electoral process itself: roll revision (SIR), delimitation, ECI rules, electoral reforms (NOT campaigns or candidates)",
+    "economy": "macro data, budget/tax, trade deals & FTAs, banking, industry policy, agriculture policy",
+    "india_foreign_relations": "India's bilateral/multilateral ties: visits, summits, agreements, aid to neighbours, diaspora policy",
+    "global_affairs": "major world event aspirants must know: wars, coups, regime change, global treaties, UN/WTO/IMF decisions",
+    "report_index": "report, survey or ranking by UN/World Bank/NITI/govt bodies (who publishes it, key findings)",
+    "science_tech": "space, defence tech, biotech, AI, semiconductors, nuclear/energy tech",
+    "environment": "species, protected areas, pollution, climate policy, conservation, human-wildlife conflict policy",
+    "disaster": "cyclones, floods, earthquakes and the disaster-management response",
+    "internal_security": "insurgency, LWE, J&K/North-East/Manipur security, border management, terror probes by NIA, cyber security",
+    "history_culture": "anniversaries of historical figures, art, architecture, festivals of national significance, heritage/GI tags, awards",
+    "society_data": "social issue backed by data or policy: health, education, gender, caste, demography, urbanisation",
+    "none": "no exam hook",
+}
 
-Score 0-5:
-5 = core exam material: constitutional amendment or new law/bill; landmark Supreme Court judgment; major central scheme/policy launch or reform; RBI policy or key economic data; major agreement/summit involving India; important report or index (who publishes it, India's rank); ISRO/DRDO/S&T milestone; species, protected area, climate or pollution policy; appointment to a constitutional post.
-4 = clearly useful: national policy debate with facts; government/committee report; internal security development (LWE, insurgency, cyber, border); global event with direct impact on India (trade, energy, diaspora, neighbourhood).
-3 = useful as a Mains example: state policy with national relevance; governance or social-sector case with data; disaster and its management.
-2 = marginal. 1 = barely. 0 = none.
+GATE_SYSTEM = """You screen news for UPSC Civil Services (CSE) aspirants.
+Prelims tests FACTS (firsts, bodies, places, reports, schemes, species, historical figures);
+Mains tests ISSUES (policy, governance, security, IR, economy, ethics). A story does not need a
+policy angle to matter: a factual 'first', a UN finding or a court hearing is Prelims material.
 
-ALWAYS score 0 or 1 for:
-- individual crimes, arrests, murders, assaults, accidents, fires, deaths, obituaries
-- party politics: allegations, protests, campaign speeches, defections talk, candidate or seat contests, poll predictions
-- routine events: ministerial visits, review meetings, inaugurations of local works, statements of intent, festivals, temple events
-- local civic complaints (roads, drains, traffic) without a policy angle
-- entertainment, celebrities, sports, business gossip, company results, stock tips
-- another country's domestic politics, crime or society with no India link and no global significance
+Step 1 - pick the ONE exam hook that fits best:
+""" + "\n".join(f"- {k}: {v}" for k, v in HOOKS.items()) + """
 
-Reply JSON only: {"score": <0-5>, "reason": "<max 12 words>"}"""
+Hook is "none" for: individual crimes/arrests/accidents/deaths, party politics (allegations,
+protests, campaigns, candidates, seat contests, leadership tussles), routine local administration,
+entertainment, celebrities, sports, company news, and another country's domestic crime or society.
+
+Step 2 - score how much an aspirant needs it:
+5 = certain to be useful (landmark ruling/law/scheme, major summit or agreement, key report, ISRO/DRDO milestone)
+4 = clearly useful (important development under the hook, national relevance)
+3 = useful fact or example for the hook (state-level policy, a first/record, ongoing issue update)
+2 = weak link to the hook
+0-1 = hook is none
+
+Reply JSON only: {"hook": "<hook>", "score": <0-5>, "reason": "<max 12 words>"}"""
 
 GATE_SCHEMA = {
     "type": "object",
-    "properties": {"score": {"type": "integer", "enum": [0, 1, 2, 3, 4, 5]},
+    "properties": {"hook": {"type": "string", "enum": list(HOOKS)},
+                   "score": {"type": "integer", "enum": [0, 1, 2, 3, 4, 5]},
                    "reason": {"type": "string"}},
-    "required": ["score", "reason"],
+    "required": ["hook", "score", "reason"],
 }
 
 # ------------------------------------------------------------------ stage 2
@@ -52,11 +74,16 @@ Map the news to exactly ONE primary syllabus node from this fixed tree (use the 
 
 Fields:
 - exam_type: "prelims" (mainly facts), "mains" (mainly analysis) or "both".
-- subject, node: primary keys from the tree above. "ir" is ONLY for India's foreign relations and global bodies, never for domestic news.
+- subject, node: primary keys from the tree above. "ir" is ONLY for India's foreign relations and global bodies, never for domestic news. "neighbourhood" means SAARC neighbours + China, Myanmar, Afghanistan; other countries are "bilateral".
 - secondary: 0-2 other {{"subject","node"}} pairs if the item clearly also fits another paper.
-- why_in_news: one line, starts with the event (e.g. "Supreme Court struck down ...").
+- why_in_news: one line saying what happened and why it matters for the exam, with the key actor (e.g. "Supreme Court struck down electoral bonds as violating the right to information").
 - fact_box: 2-3 sentences of hard facts from the article: who, what, numbers, dates, bodies.
-- prelims_pointers: 2-5 short items an MCQ could test (the scheme and its ministry, the Act or Article, the body and its parent ministry, the report and its publisher, the place and its state/river/neighbour, the species and its IUCN status). type from: {", ".join(POINTER_TYPES)}.
+- prelims_pointers: 2-5 short items an MCQ could test, each a complete fact, not just a name
+  (e.g. "CEPA: India-UAE trade pact in force since May 2022", "BSF: under the Ministry of Home Affairs").
+  type: constitution = Article/Schedule; act_bill = a law or bill; scheme = a government scheme or mission;
+  institution = an Indian body/agency; international_org = a foreign or multilateral body/agreement;
+  report_index = report or ranking and its publisher; place = location with state/country/river;
+  species_environment; sci_tech; person_post = a constitutional or official post; data_fact = a number.
 - mains_question: one UPSC-style Mains question (e.g. "Critically examine ...", "Discuss ...") in <= 30 words.
 - mains_dimensions: 2-4 short angles to cover in an answer (e.g. "federal concerns", "fiscal cost", "way forward: ...").
 - keywords: 3-6 answer-writing terms.
@@ -105,7 +132,10 @@ def validate_gate(data):
         raise InvalidOutput(f"bad gate output: {data!r}")
     if not 0 <= score <= 5:
         raise InvalidOutput(f"score out of range: {score}")
-    return {"score": score, "reason": _clip(data.get("reason"), 120)}
+    hook = data.get("hook") if data.get("hook") in HOOKS else "none"
+    if hook == "none":
+        score = min(score, 1)
+    return {"score": score, "hook": hook, "reason": _clip(f"{hook}: {data.get('reason') or ''}", 140)}
 
 
 def validate_notes(data):

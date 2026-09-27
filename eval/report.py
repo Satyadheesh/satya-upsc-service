@@ -51,7 +51,11 @@ def main():
          f"| subject accuracy | {pct(len(subj_ok), len(noted))} | ≥ {TARGET_SUBJECT:.0%} |",
          f"| borderline passed | {pct(len(passed(border)), len(border))} | – |",
          f"| errors | {len(errors)} | 0 |",
-         "", "v1 baseline: false positives 64%, recall 82%.", ""]
+         "", "v1 baseline: false positives 64%, recall 82%. v2.0: false positives 1%, recall 27%.", "",
+         "### By threshold", "| keep score ≥ | FP on `no` | recall on `yes` | borderline kept |", "|---|---|---|---|",
+         *[f"| {t}{' (current)' if t == smin else ''} | {pct(sum(r['score'] >= t for r in no), len(no))} | "
+           f"{pct(sum(r['score'] >= t for r in yes), len(yes))} | {pct(sum(r['score'] >= t for r in border), len(border))} |"
+           for t in (2, 3, 4)], ""]
     if fp:
         L += ["### False positives", *[f"- s={r['score']} {r['title'][:90]} — _{r['reason']}_" for r in fp], ""]
     fn = [r for r in yes if r["score"] < smin]
