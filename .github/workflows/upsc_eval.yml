@@ -1,0 +1,64 @@
+name: UPSC Eval
+
+# Runs automatically when the prompt/model/eval set changes, or by hand.
+# A passing run approves the prompt version; the pipeline only runs approved prompts.
+on:
+  push:
+    branches: [main]
+    paths: ['analyzer.py', 'syllabus.py', 'eval/**', '.github/workflows/upsc_eval.yml']
+  workflow_dispatch:
+
+concurrency:
+  group: upsc-eval
+  cancel-in-progress: true
+
+env:
+  SATYA_UPSC_DB_URL: ${{ secrets.SATYA_UPSC_DB_URL }}
+  SATYA_UPSC_DB_TOKEN: ${{ secrets.SATYA_UPSC_DB_TOKEN }}
+  UPSC_MODEL_FILE: Qwen2.5-7B-Instruct-Q4_K_M.gguf
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-upsc-${{ hashFiles('requirements.txt') }}
+      - uses: actions/cache@v4
+        with:
+          path: models
+          key: gguf-${{ env.UPSC_MODEL_FILE }}
+      - run: pip install -r requirements.txt --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
+      - run: python eval/run_eval.py --shard ${{ matrix.shard }}/6 --out eval_out/${{ matrix.shard }}.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: eval-${{ matrix.shard }}
+          path: eval_out/${{ matrix.shard }}.json
+
+  report:
+    needs: eval
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - uses: actions/download-artifact@v4
+        with:
+          path: eval_out
+          merge-multiple: true
+      - name: Migrate schema (idempotent)
+        run: python migrate.py
+      - name: Report and approve
+        run: python eval/report.py eval_out/*.json --approve

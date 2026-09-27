@@ -5,3 +5,5 @@ __pycache__/
 venv/
 models/
 *.db
+check_runs.py
+manage_actions.py
