@@ -8,8 +8,8 @@ import libsql_client
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-MODEL_REPO = "Qwen/Qwen2.5-7B-Instruct-GGUF"
-MODEL_FILENAME = "qwen2.5-7b-instruct-q4_k_m.gguf"
+MODEL_REPO = "bartowski/Qwen2.5-7B-Instruct-GGUF"
+MODEL_FILENAME = "Qwen2.5-7B-Instruct-Q4_K_M.gguf"
 MODEL_DIR = os.path.join(os.getcwd(), "models")
 os.makedirs(MODEL_DIR, exist_ok=True)
 
