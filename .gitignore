@@ -1,9 +1,0 @@
-__pycache__/
-*.pyc
-.env
-.venv/
-venv/
-models/
-*.db
-check_runs.py
-manage_actions.py
