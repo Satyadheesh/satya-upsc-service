@@ -1,0 +1,90 @@
+name: UPSC Analysis Pipeline
+
+on:
+  schedule:
+    - cron: '20,50 * * * *'
+  workflow_dispatch:
+    inputs:
+      batch_size:
+        description: 'Articles to process in this run (newest unprocessed first)'
+        required: false
+        default: '50'
+      lookback_days:
+        description: 'Only consider articles scraped within this many days'
+        required: false
+        default: '365'
+      force:
+        description: 'Run even if the current prompt has not passed the UPSC Eval workflow'
+        type: boolean
+        default: false
+
+concurrency:
+  group: upsc-pipeline
+  cancel-in-progress: false
+
+env:
+  SATYA_DB_URL: ${{ secrets.SATYA_DB_URL }}
+  SATYA_DB_TOKEN: ${{ secrets.SATYA_DB_TOKEN }}
+  SATYA_UPSC_DB_URL: ${{ secrets.SATYA_UPSC_DB_URL }}
+  SATYA_UPSC_DB_TOKEN: ${{ secrets.SATYA_UPSC_DB_TOKEN }}
+  UPSC_MODEL_FILE: Qwen2.5-7B-Instruct-Q4_K_M.gguf
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      shards: ${{ steps.set-shards.outputs.shards }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - run: pip install libsql-client
+      - name: Migrate schema (idempotent)
+        run: python migrate.py
+      - id: set-shards
+        env:
+          BATCH_SIZE: ${{ github.event.inputs.batch_size || '50' }}
+          LOOKBACK_DAYS: ${{ github.event.inputs.lookback_days || '365' }}
+          FORCE_UNAPPROVED: ${{ github.event.inputs.force || 'false' }}
+        run: python setup_shards.py
+
+  analyze_articles:
+    needs: setup
+    if: ${{ needs.setup.outputs.shards != '[""]' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      max-parallel: 10
+      matrix:
+        shard: ${{ fromJson(needs.setup.outputs.shards) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-upsc-${{ hashFiles('requirements.txt') }}
+
+      # 4.7 GB of weights: download once, restore from cache afterwards.
+      - name: Cache model weights
+        uses: actions/cache@v4
+        with:
+          path: models
+          key: gguf-${{ env.UPSC_MODEL_FILE }}
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          # prebuilt CPU wheels avoid compiling llama.cpp on every runner
+          pip install -r requirements.txt --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
+
+      - name: Run UPSC pipeline
+        env:
+          SHARD_DEADLINE_SEC: '15600'   # 4h20m, below the 300-minute job timeout
+        run: python upsc_pipeline.py --ids "${{ matrix.shard }}"
