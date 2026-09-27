@@ -43,7 +43,7 @@ def download_model():
     model_path = os.path.join(MODEL_DIR, MODEL_FILENAME)
     if not os.path.exists(model_path):
         logging.info(f"Downloading model {MODEL_FILENAME} (approx 4.9GB)... This may take a while.")
-        hf_hub_download(repo_id=MODEL_REPO, filename=MODEL_FILENAME, local_dir=MODEL_DIR)
+        hf_hub_download(repo_id=MODEL_REPO, filename=MODEL_FILENAME, local_dir=MODEL_DIR, token=os.environ.get('HF_TOKEN'))
         logging.info("Download complete.")
     else:
         logging.info("Model already exists locally.")
