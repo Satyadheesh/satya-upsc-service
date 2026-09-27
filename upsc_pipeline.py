@@ -8,8 +8,8 @@ import libsql_client
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # --- CONFIGURATION ---
-MODEL_REPO = "bartowski/Meta-Llama-3.1-8B-Instruct-GGUF"
-MODEL_FILENAME = "Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf"
+MODEL_REPO = "Qwen/Qwen2.5-7B-Instruct-GGUF"
+MODEL_FILENAME = "qwen2.5-7b-instruct-q4_k_m.gguf"
 MODEL_DIR = os.path.join(os.getcwd(), "models")
 os.makedirs(MODEL_DIR, exist_ok=True)
 
@@ -43,7 +43,7 @@ def download_model():
     model_path = os.path.join(MODEL_DIR, MODEL_FILENAME)
     if not os.path.exists(model_path):
         logging.info(f"Downloading model {MODEL_FILENAME} (approx 4.9GB)... This may take a while.")
-        hf_hub_download(repo_id=MODEL_REPO, filename=MODEL_FILENAME, local_dir=MODEL_DIR, token=os.environ.get('HF_TOKEN'))
+        hf_hub_download(repo_id=MODEL_REPO, filename=MODEL_FILENAME, local_dir=MODEL_DIR)
         logging.info("Download complete.")
     else:
         logging.info("Model already exists locally.")
@@ -78,7 +78,7 @@ def main():
 
     # 3. Load Model
     model_path = download_model()
-    logging.info("Loading Llama-3.1-8B-Instruct...")
+    logging.info("Loading Qwen-2.5-7B-Instruct...")
     llm = Llama(
         model_path=model_path,
         n_ctx=4096,
