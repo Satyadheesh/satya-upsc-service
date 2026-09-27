@@ -78,14 +78,20 @@ jobs:
       # Publish the report + raw shard outputs on the eval-reports branch (readable without log access)
       - name: Publish report
         if: ${{ always() }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN: ${{ github.run_id }}
         run: |
-          mkdir -p /tmp/pub && cp -r eval_out /tmp/pub/ 2>/dev/null || true
-          cp migrate.log report.log /tmp/pub/ 2>/dev/null || true
-          cp eval_report.md /tmp/pub/ 2>/dev/null || echo "report did not render" > /tmp/pub/eval_report.md
+          set -e
+          rm -rf /tmp/pub && mkdir -p /tmp/pub
+          cp -r eval_out migrate.log report.log /tmp/pub/ 2>/dev/null || true
+          if [ -f eval_report.md ]; then cp eval_report.md /tmp/pub/; else { echo "report did not render"; tail -40 report.log 2>/dev/null; } > /tmp/pub/eval_report.md; fi
+          rm -rf /tmp/wt && mkdir /tmp/wt && cd /tmp/wt && git init -q
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git fetch origin eval-reports || true
-          git checkout -B eval-reports origin/eval-reports 2>/dev/null || git checkout --orphan eval-reports
-          git rm -rq . 2>/dev/null || true
-          D="runs/${{ github.run_id }}"; mkdir -p "$D"; cp -r /tmp/pub/* "$D"/; cp /tmp/pub/eval_report.md latest.md
-          git add -A && git commit -qm "eval report run ${{ github.run_id }} (${GITHUB_SHA::7})" && git push -q origin eval-reports
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          if git fetch -q --depth 1 origin eval-reports; then git checkout -q -b eval-reports FETCH_HEAD; else git checkout -q --orphan eval-reports; fi
+          find . -mindepth 1 -maxdepth 1 ! -name .git ! -name runs -exec rm -rf {} +
+          mkdir -p "runs/$RUN" && cp -r /tmp/pub/* "runs/$RUN"/ && cp /tmp/pub/eval_report.md latest.md
+          git add -A && git commit -qm "eval report run $RUN (${GITHUB_SHA::7})" && git push -q origin HEAD:eval-reports
