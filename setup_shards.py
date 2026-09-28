@@ -19,7 +19,7 @@ UPSC_DB_URL = os.environ.get("SATYA_UPSC_DB_URL")
 UPSC_DB_TOKEN = os.environ.get("SATYA_UPSC_DB_TOKEN")
 
 BATCH_SIZE = int(os.environ.get("BATCH_SIZE") or 100)
-MAX_SHARDS = int(os.environ.get("MAX_SHARDS") or 10)
+MAX_SHARDS = int(os.environ.get("MAX_SHARDS") or 18)
 LOOKBACK_DAYS = int(os.environ.get("LOOKBACK_DAYS") or 365)
 MAX_SCAN = int(os.environ.get("MAX_SCAN") or 5000)        # rows scanned per run, upper bound
 CLAIM_TTL = int(os.environ.get("CLAIM_TTL") or 6 * 3600)  # > job timeout

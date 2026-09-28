@@ -49,6 +49,7 @@ jobs:
           BATCH_SIZE: ${{ github.event.inputs.batch_size || '100' }}
           LOOKBACK_DAYS: ${{ github.event.inputs.lookback_days || '365' }}
           FORCE_UNAPPROVED: ${{ github.event.inputs.force || 'false' }}
+          MAX_SHARDS: '18'
         run: python setup_shards.py
 
   analyze_articles:
@@ -58,7 +59,7 @@ jobs:
     timeout-minutes: 300
     strategy:
       fail-fast: false
-      max-parallel: 10
+      max-parallel: 18
       matrix:
         shard: ${{ fromJson(needs.setup.outputs.shards) }}
     steps:
