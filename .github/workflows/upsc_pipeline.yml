@@ -8,7 +8,7 @@ on:
       batch_size:
         description: 'Articles to process in this run (newest unprocessed first)'
         required: false
-        default: '100'
+        default: '180'
       lookback_days:
         description: 'Only consider articles scraped within this many days'
         required: false
@@ -46,7 +46,7 @@ jobs:
         run: python migrate.py
       - id: set-shards
         env:
-          BATCH_SIZE: ${{ github.event.inputs.batch_size || '100' }}
+          BATCH_SIZE: ${{ github.event.inputs.batch_size || '180' }}
           LOOKBACK_DAYS: ${{ github.event.inputs.lookback_days || '365' }}
           FORCE_UNAPPROVED: ${{ github.event.inputs.force || 'false' }}
           MAX_SHARDS: '18'
@@ -107,5 +107,5 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh workflow run upsc_pipeline.yml --repo "$GITHUB_REPOSITORY" --ref main \
-            -f batch_size='${{ github.event.inputs.batch_size || '100' }}' \
+            -f batch_size='${{ github.event.inputs.batch_size || '180' }}' \
             -f lookback_days='${{ github.event.inputs.lookback_days || '365' }}'
