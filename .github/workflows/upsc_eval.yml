@@ -40,9 +40,9 @@ jobs:
     timeout-minutes: 120
     strategy:
       fail-fast: false
-      max-parallel: 18
+      max-parallel: 10
       matrix:
-        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
     steps:
       - uses: actions/checkout@v4
       - name: Free disk for model weights
@@ -59,7 +59,7 @@ jobs:
           path: models
           key: gguf-${{ env.UPSC_MODEL_FILE }}
       - run: pip install -r requirements.txt --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
-      - run: python eval/run_eval.py --shard ${{ matrix.shard }}/18 --out eval_out/${{ matrix.shard }}.json
+      - run: python eval/run_eval.py --shard ${{ matrix.shard }}/10 --out eval_out/${{ matrix.shard }}.json
       - uses: actions/upload-artifact@v4
         with:
           name: eval-${{ matrix.shard }}
