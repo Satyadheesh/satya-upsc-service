@@ -15,6 +15,25 @@ CRIME_KEEP_RE = re.compile(
     re.I,
 )
 
+# Sensitive individual crimes that are NEVER UPSC CSE exam material across any category.
+# UPSC tests policy, constitutional benches, and statutory amendments, never individual crimes.
+SENSITIVE_CRIME_RE = re.compile(
+    r"\b(rape|raped|rapists?|gang[- ]?rapes?|gang[- ]?raped|pocso|sexual(?:ly)? (?:assault|harass|abuse)[ed|ing]*|"
+    r"molest(?:ed|ation|ing)?|minor(?:'s)? (?:rape|assault)|"
+    r"dowry (?:death|harassment)|domestic violence|"
+    r"suicide pact|killed (?:wife|husband|mother|father|son|daughter|family|brother|sister)|"
+    r"stabb(?:ed|ing)|chopped into pieces|beheaded|"
+    r"chargesheet (?:filed )?in (?:minor|rape|pocso|murder))\b",
+    re.I,
+)
+
+# Only statutory/constitutional reform or supreme court constitution bench can override
+CONSTITUTION_BENCH_RE = re.compile(
+    r"\b(constitution bench|landmark ruling|verma committee|vishaka guidelines|"
+    r"amendment bill|parliamentary (?:standing )?committee|law commission)\b",
+    re.I,
+)
+
 # Obvious non-exam noise, applied to every category.
 NOISE_RE = re.compile(
     r"\b(movie review|film review|box office|trailer|teaser|bigg boss|ott|web series|"
@@ -36,6 +55,8 @@ def prefilter(title: str, category: str | None):
         return "empty_title"
     if cat in DROP_CATEGORIES:
         return f"category:{cat}"
+    if SENSITIVE_CRIME_RE.search(t) and not CONSTITUTION_BENCH_RE.search(t):
+        return "sensitive_crime"
     if cat == "crime" and not CRIME_KEEP_RE.search(t):
         return "category:crime"
     m = NOISE_RE.search(t)

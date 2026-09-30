@@ -10,7 +10,7 @@ import re
 
 from syllabus import EXAM_TYPES, SYLLABUS, paper_of, prompt_tree
 
-PROMPT_VERSION = "v2.4"
+PROMPT_VERSION = "v2.5"
 MODEL_REPO = os.environ.get("UPSC_MODEL_REPO", "unsloth/gemma-4-12b-it-GGUF")
 MODEL_FILENAME = os.environ.get("UPSC_MODEL_FILE", "gemma-4-12b-it-Q4_K_M.gguf")
 MODEL_NAME = MODEL_FILENAME.rsplit(".", 1)[0]
@@ -62,9 +62,13 @@ policy angle to matter: a factual 'first', a UN finding or a court hearing is Pr
 Step 1 - pick the ONE exam hook that fits best:
 """ + "\n".join(f"- {k}: {v}" for k, v in HOOKS.items()) + """
 
-Hook is "none" for: individual crimes/arrests/accidents/deaths, party politics (allegations,
-protests, campaigns, candidates, seat contests, leadership tussles), routine local administration,
-entertainment, celebrities, sports, company news, and another country's domestic crime or society.
+Hook is "none" for:
+- individual crimes, FIRs, police chargesheets, arrests, bail hearings, sexual offenses (rape, POCSO, molestation),
+  domestic violence, murder, or local trials (even if heard in High Court/Supreme Court). UPSC CSE tests policy,
+  statutory amendments, and landmark Constitution Benches, NEVER individual crimes or criminal trials.
+- party politics (allegations, protests, campaigns, candidates, seat contests, leadership tussles),
+- routine local administration, accidents, or local disputes,
+- entertainment, celebrities, sports, company news, and another country's domestic crime or society.
 
 Step 2 - scope: the level at which the SUBJECT matters (not where the event happened;
 a national anniversary observed in one city is "national"):
@@ -102,7 +106,7 @@ GATE_SCHEMA = {
 }
 
 # ------------------------------------------------------------------ stage 2
-NOTES_SYSTEM = f"""You are a senior UPSC CSE mentor writing crisp current-affairs notes.
+NOTES_SYSTEM = f"""You are a senior UPSC CSE mentor writing crisp, authoritative current-affairs notes.
 Map the news to exactly ONE primary syllabus node from this fixed tree (use the keys exactly):
 {prompt_tree()}
 
@@ -122,10 +126,16 @@ Fields:
   species_environment; sci_tech; person_post = a constitutional or official post; data_fact = a number.
 - mains_question: one UPSC-style Mains question (e.g. "Critically examine ...", "Discuss ...") in <= 30 words,
   about the underlying issue or institution, never about a person's career or image.
-- mains_dimensions: 2-4 short angles to cover in an answer (e.g. "federal concerns", "fiscal cost", "way forward: ...").
+- mains_dimensions: 2-4 substantive, issue-specific analytical angles (8-20 words each) covering institutional bottlenecks, constitutional/legal conflicts, or policy trade-offs.
+  * STRICT NEGATIVE RULE: DO NOT use generic one-phrase headings like "Way forward", "Challenges", "Significance", "Need for reforms", "Role of technology", "Way ahead", or "Impact on economy".
+  * BAD (generic): "Challenges: implementation issues", "Role of technology in tracking", "Way forward: better funding".
+  * GOOD (specific): "Enforcement gap: Shortage of food safety officers and accredited testing labs under IMS Act", "Federal friction: State regulatory autonomy vs Central guidelines", "Supply chain bottleneck: High import reliance on raw wafer inputs despite PLI scheme incentives".
 - keywords: 3-6 answer-writing terms.
 
-Rules: use only facts from the article. Mention an Article number, Act name, date or figure only if the article states it or you are certain. No party-political opinion. Plain English. JSON only."""
+Core Accuracy Rules:
+1. Temporal Precision: Always attach the complete 4-digit calendar year to all deadlines, targets, milestones, and timeframes (e.g. "10 GW by August 2026", never just "by August" or "next year"). If the calendar year is not explicitly stated in the source text, omit the month and specify the broad timeframe or omit the target date. Prelims aspirants memorize exact facts; vague timelines cause exam errors.
+2. Cross-Field Consistency: Targets and dates in why_in_news, fact_box, and prelims_pointers must be mutually consistent (e.g. distinguishing an interim phase target from a final cumulative mission target).
+3. Grounding: Use only facts from the article. Mention an Article number, Act name, date or figure only if the article states it or you are certain. No party-political opinion. Plain English. JSON only."""
 
 NOTES_SCHEMA = {
     "type": "object",
@@ -218,6 +228,41 @@ def validate_notes(data):
         if len(t) >= 5:
             pointers.append({"type": p.get("type") if p.get("type") in POINTER_TYPES else "data_fact", "text": t})
     dedupe = lambda xs, n, lim: list(dict.fromkeys(_clip(x, n) for x in (xs or []) if str(x).strip()))[:lim]
+    sec_crime_re = re.compile(
+        r"\b(rape|rapist|pocso|sexual(?:ly)? (?:assault|harass|abuse)|molest|minor(?:'s)? (?:rape|assault)|"
+        r"dowry|domestic violence)\b", re.I
+    )
+    sec_valid_re = re.compile(
+        r"\b(terror|militan|insurgen|infiltrat|j&k|jammu|kashmir|nagaland|manipur|assam|"
+        r"ulfa|nscn|lashkar|jaish|hizb|isi\b|nia\b|uapa|border|line of control|loc\b|cross-border)\b", re.I
+    )
+    if node in {"terrorism_insurgency", "lwe", "border_management"}:
+        combined = f"{why} {fact} {data.get('mains_question') or ''}"
+        if sec_crime_re.search(combined) and not sec_valid_re.search(combined):
+            raise InvalidOutput(f"{node} assigned to non-security crime story: {why[:80]}")
+
+    GENERIC_DIMENSIONS = {
+        'way forward', 'challenges', 'significance', 'role of technology', 'need for reforms',
+        'way ahead', 'impact on economy', 'conclusion', 'challenges faced', 'importance',
+        'major challenges', 'future outlook', 'key challenges', 'background', 'overview',
+    }
+
+    clean_dims = []
+    for d in (data.get("mains_dimensions") or []):
+        cleaned_d = _clip(d, 140)
+        if not cleaned_d:
+            continue
+        stripped = re.sub(
+            r'^(?:way forward|challenges?|significance|role of technology|need for reforms?|way ahead)[:\-—]\s*',
+            '', cleaned_d, flags=re.I
+        ).strip()
+        lower = stripped.lower().rstrip('.,;: ')
+        if lower in GENERIC_DIMENSIONS or not stripped:
+            continue
+        clean_dims.append(stripped)
+
+    final_dims = list(dict.fromkeys(clean_dims))[:4] if clean_dims else dedupe(data.get("mains_dimensions"), 120, 4)
+
     return {
         "exam_type": exam_type,
         "gs_paper": paper_of(subject),
@@ -228,7 +273,7 @@ def validate_notes(data):
         "fact_box": fact,
         "prelims_pointers": pointers[:5],
         "mains_question": _clip(data.get("mains_question"), 260) or None,
-        "mains_dimensions": dedupe(data.get("mains_dimensions"), 120, 4),
+        "mains_dimensions": final_dims,
         "keywords": dedupe(data.get("keywords"), 40, 6),
     }
 
