@@ -67,7 +67,7 @@ Hook is "none" for:
   domestic violence, murder, or local trials (even if heard in High Court/Supreme Court). UPSC CSE tests policy,
   statutory amendments, and landmark Constitution Benches, NEVER individual crimes or criminal trials.
 - party politics (allegations, protests, campaigns, candidates, seat contests, leadership tussles),
-- routine local administration, accidents, or local disputes,
+- routine local administration, accidents, or local disputes (does NOT apply to conflict zones like Manipur, J&K, or border areas which belong to internal_security),
 - entertainment, celebrities, sports, company news, and another country's domestic crime or society.
 
 Step 2 - scope: the level at which the SUBJECT matters (not where the event happened;
@@ -185,7 +185,7 @@ def validate_gate(data, india=True):
         scope = "international_other"  # text never mentions India: trust that over the model
     political = data.get("party_political") is True
     cap, why = 5, ""
-    official = hook in {"court_constitutional", "constitutional_authority"}
+    official = hook in {"court_constitutional", "constitutional_authority", "elections_process"}
     if hook == "none":
         cap, why = 1, "no hook"
     elif political and not official:
