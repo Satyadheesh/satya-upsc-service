@@ -108,3 +108,5 @@ v1 baseline: false positives 64%, recall 82%. v2.0: FP 1%, recall 27%. v2.1: FP 
 - [data_fact] The Sangai Festival, a major cultural event in Manipur, began on November 21, 2025.
 - Q: Examine the challenges in managing internal security and the rehabilitation of internally displaced persons (IDPs) in conflict-affected regions of Northeast India.
 
+
+Approved v2.5|gemma-4-12b-it-Q4_K_M for production.
