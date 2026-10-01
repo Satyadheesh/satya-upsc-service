@@ -26,6 +26,8 @@ jobs:
         env:
           SATYA_DB_URL: ${{ secrets.SATYA_DB_URL }}
           SATYA_DB_TOKEN: ${{ secrets.SATYA_DB_TOKEN }}
+          SATYA_UPSC_DB_URL: ${{ secrets.SATYA_UPSC_DB_URL }}
+          SATYA_UPSC_DB_TOKEN: ${{ secrets.SATYA_UPSC_DB_TOKEN }}
         run: python "tools/${{ github.event.inputs.script }}" 2>&1 | tee /tmp/diag.md
       - name: Publish
         if: ${{ always() }}
