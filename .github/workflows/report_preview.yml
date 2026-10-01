@@ -44,6 +44,12 @@ jobs:
               b = p.chromium.launch(); pg = b.new_page()
               for i, path in enumerate(os.environ['PATHS'].split()):
                   name = re.sub(r'[^A-Za-z0-9]+', '_', path.strip('/'))[-60:]
+                  try:
+                      import urllib.request
+                      j = urllib.request.urlopen(SITE + path + ('&' if '?' in path else '?') + 'format=json', timeout=300).read()
+                      open(f'/tmp/prev/{name}.json', 'wb').write(j)
+                  except Exception as e:
+                      print('json failed', e)
                   r = pg.goto(SITE + path, wait_until='networkidle', timeout=180000)
                   print(path, r.status if r else None)
                   if not r or r.status != 200: continue
