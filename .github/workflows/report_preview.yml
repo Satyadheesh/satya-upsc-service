@@ -25,16 +25,17 @@ jobs:
           python-version: '3.10'
       - name: Install
         run: |
-          pip install playwright
+          pip install playwright libsql-client
           python -m playwright install --with-deps chromium
           sudo apt-get install -y -q fonts-noto-core poppler-utils >/dev/null
       - name: Render
+        continue-on-error: true
         env:
           PATHS: ${{ github.event.inputs.paths }}
           PAGES: ${{ github.event.inputs.pages }}
         run: |
           mkdir -p /tmp/prev
-          python - <<'PY'
+          python - <<'PY' 2>&1 | tee /tmp/prev/log.txt
           import os, re, subprocess, sys
           sys.path.insert(0, 'reports')
           from build_pdfs import FOOTER, SITE
@@ -57,6 +58,7 @@ jobs:
           PY
           ls -la /tmp/prev
       - name: Publish
+        if: always()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -66,5 +68,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           if git fetch -q --depth 1 origin diag-reports; then git checkout -q -b diag-reports FETCH_HEAD; else git checkout -q --orphan diag-reports; fi
-          rm -rf previews && mkdir -p previews && cp /tmp/prev/*.png previews/ && cp /tmp/prev/*.pdf previews/ 2>/dev/null || true
+          rm -rf previews && mkdir -p previews && cp /tmp/prev/* previews/ 2>/dev/null || true
           git add -A && git commit -qm "report preview ${GITHUB_RUN_ID}" && git push -q origin HEAD:diag-reports
