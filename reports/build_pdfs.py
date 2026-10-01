@@ -26,9 +26,14 @@ FOOTER = ('<div style="width:100%;font-size:7.5px;color:#888;font-family:sans-se
           '<span class="totalPages"></span></div>')
 
 
+_clients = []
+
+
 def db():
     url = os.environ["SATYA_UPSC_DB_URL"].replace("libsql://", "https://")
-    return libsql_client.create_client_sync(url=url, auth_token=os.environ["SATYA_UPSC_DB_TOKEN"])
+    c = libsql_client.create_client_sync(url=url, auth_token=os.environ["SATYA_UPSC_DB_TOKEN"])
+    _clients.append(c)
+    return c
 
 
 def ensure_tables(c):
@@ -115,4 +120,12 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    finally:
+        # libsql_client's sync client runs a background thread: close it or the process never exits
+        for c in _clients:
+            try:
+                c.close()
+            except Exception:
+                pass
