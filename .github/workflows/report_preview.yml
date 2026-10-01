@@ -1,0 +1,70 @@
+name: UPSC Report Preview (read-only)
+
+# Renders a few report PDFs the same way the builder does, converts their first pages to PNG
+# and publishes them to the diag-reports branch (previews/) for a visual check. Writes nothing to the DB.
+on:
+  workflow_dispatch:
+    inputs:
+      paths:
+        description: 'Space-separated print paths, e.g. /upsc/reports/print/daily/2026-10-01?lang=hi'
+        required: true
+      pages:
+        description: 'Pages per PDF to render as PNG'
+        default: '3'
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Install
+        run: |
+          pip install playwright
+          python -m playwright install --with-deps chromium
+          sudo apt-get install -y -q fonts-noto-core poppler-utils >/dev/null
+      - name: Render
+        env:
+          PATHS: ${{ github.event.inputs.paths }}
+          PAGES: ${{ github.event.inputs.pages }}
+        run: |
+          mkdir -p /tmp/prev
+          python - <<'PY'
+          import os, re, subprocess, sys
+          sys.path.insert(0, 'reports')
+          from build_pdfs import FOOTER, SITE
+          from playwright.sync_api import sync_playwright
+          with sync_playwright() as p:
+              b = p.chromium.launch(); pg = b.new_page()
+              for i, path in enumerate(os.environ['PATHS'].split()):
+                  name = re.sub(r'[^A-Za-z0-9]+', '_', path.strip('/'))[-60:]
+                  r = pg.goto(SITE + path, wait_until='networkidle', timeout=180000)
+                  print(path, r.status if r else None)
+                  if not r or r.status != 200: continue
+                  pg.evaluate('document.fonts.ready'); pg.wait_for_timeout(300)
+                  pdf = pg.pdf(format='A4', print_background=True, prefer_css_page_size=True,
+                               display_header_footer=True, header_template='<div></div>', footer_template=FOOTER)
+                  f = f'/tmp/prev/{name}.pdf'; open(f, 'wb').write(pdf)
+                  n = subprocess.run(['pdfinfo', f], capture_output=True, text=True).stdout
+                  print(name, len(pdf) // 1024, 'KB', re.search(r'Pages:\s+(\d+)', n).group(1), 'pages')
+                  subprocess.run(['pdftoppm', '-png', '-r', '70', '-l', os.environ.get('PAGES', '3'), f, f'/tmp/prev/{name}'], check=True)
+              b.close()
+          PY
+          ls -la /tmp/prev
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          rm -rf /tmp/wt && mkdir /tmp/wt && cd /tmp/wt && git init -q
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          if git fetch -q --depth 1 origin diag-reports; then git checkout -q -b diag-reports FETCH_HEAD; else git checkout -q --orphan diag-reports; fi
+          rm -rf previews && mkdir -p previews && cp /tmp/prev/*.png previews/ && cp /tmp/prev/*.pdf previews/ 2>/dev/null || true
+          git add -A && git commit -qm "report preview ${GITHUB_RUN_ID}" && git push -q origin HEAD:diag-reports
