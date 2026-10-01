@@ -1,0 +1,50 @@
+name: UPSC Report PDFs
+
+# Rebuilds the daily / weekly / monthly UPSC report PDFs (English + Hindi) whose content
+# changed since the last build. Hourly: today's report fills up through the day and Hindi
+# translations arrive later; past reports are only rebuilt if their notes actually change.
+on:
+  schedule:
+    - cron: '41 * * * *'
+  workflow_dispatch:
+    inputs:
+      all:
+        description: 'Consider every period (backfill), not just recent ones'
+        type: boolean
+        default: false
+      force:
+        description: 'Rebuild even if unchanged'
+        type: boolean
+        default: false
+      only:
+        description: "Only file keys containing this text (e.g. 'monthly:' or ':hi')"
+        required: false
+        default: ''
+
+concurrency:
+  group: upsc-reports
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Install
+        run: |
+          pip install libsql-client playwright
+          python -m playwright install --with-deps chromium
+          sudo apt-get install -y -q fonts-noto-core >/dev/null
+      - name: Build changed PDFs
+        env:
+          SATYA_UPSC_DB_URL: ${{ secrets.SATYA_UPSC_DB_URL }}
+          SATYA_UPSC_DB_TOKEN: ${{ secrets.SATYA_UPSC_DB_TOKEN }}
+        run: |
+          python reports/build_pdfs.py \
+            ${{ (github.event.inputs.all == 'true') && '--all' || '' }} \
+            ${{ (github.event.inputs.force == 'true') && '--force' || '' }} \
+            --only "${{ github.event.inputs.only }}"
