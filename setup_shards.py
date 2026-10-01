@@ -126,9 +126,20 @@ def main():
     # (3) backfill below the watermark (starts just under the recent window)
     below = get_meta(upsc_c, "backfill_below")
     below = int(below) if below else (int(recent[-1][0]) if recent else 2**62)
-    while len(batch) < BATCH_SIZE and scanned < MAX_SCAN:
-        page = main_c.execute(base + f"AND id < ? AND scraped_at >= ? ORDER BY id DESC LIMIT {PAGE}",
-                              [*ELIGIBLE, below, cutoff]).rows
+    # Lower id bound = first article inside the lookback window (1 row via the scraped_at index).
+    # Without it, once the watermark passed the window, 'id < ? AND scraped_at >= ?' matched nothing
+    # and walked the id index down to 1 on every run (~190k rows read per query).
+    first = main_c.execute("SELECT id FROM articles WHERE scraped_at >= ? ORDER BY scraped_at LIMIT 1", [cutoff]).rows
+    floor_id = int(first[0][0]) if first else below
+    while len(batch) < BATCH_SIZE and scanned < MAX_SCAN and below > floor_id:
+        # '+status' / '+scraped_at' keep SQLite on the primary-key range (walks ids down from
+        # the watermark, stops after PAGE rows). Otherwise it picked the (status, scraped_at)
+        # index, read every eligible article of the last year and sorted them for one page.
+        page = main_c.execute(
+            f"SELECT id, COALESCE(NULLIF(rephrased_title, ''), title), category FROM articles "
+            f"WHERE +status IN ({st_ph}) AND rephrased_article IS NOT NULL "
+            f"AND id < ? AND id >= ? AND +scraped_at >= ? ORDER BY id DESC LIMIT {PAGE}",
+            [*ELIGIBLE, below, floor_id, cutoff]).rows
         if not page:
             break
         scanned += len(page)
