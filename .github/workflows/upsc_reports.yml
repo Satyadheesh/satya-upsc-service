@@ -4,9 +4,11 @@ name: UPSC Report PDFs
 # changed since the last build. Hourly: today's report fills up through the day and Hindi
 # translations arrive later; past reports are only rebuilt if their notes actually change.
 on:
-  schedule:
-    - cron: '41 * * * *'      # recent periods (last 7 days, 2 weeks, 2 months)
-    - cron: '11 21 * * *'     # 02:41 IST: every period, so back-filled notes and late Hindi land in old reports too
+  # Retired 2 Oct 2026: the Brief + Detailed PDFs are now built by Satyadheesh/satya-upsc-reports
+  # (reports.yml). Kept for manual runs only; the PDFs it stored earlier stay in place and are still served.
+  # schedule:
+  #   - cron: '41 * * * *'
+  #   - cron: '11 21 * * *'
   workflow_dispatch:
     inputs:
       all:
