@@ -5,7 +5,8 @@ name: UPSC Report PDFs
 # translations arrive later; past reports are only rebuilt if their notes actually change.
 on:
   schedule:
-    - cron: '41 * * * *'
+    - cron: '41 * * * *'      # recent periods (last 7 days, 2 weeks, 2 months)
+    - cron: '11 21 * * *'     # 02:41 IST: every period, so back-filled notes and late Hindi land in old reports too
   workflow_dispatch:
     inputs:
       all:
@@ -45,6 +46,6 @@ jobs:
           SATYA_UPSC_DB_TOKEN: ${{ secrets.SATYA_UPSC_DB_TOKEN }}
         run: |
           python reports/build_pdfs.py \
-            ${{ (github.event.inputs.all == 'true') && '--all' || '' }} \
+            ${{ (github.event.inputs.all == 'true' || github.event.schedule == '11 21 * * *') && '--all' || '' }} \
             ${{ (github.event.inputs.force == 'true') && '--force' || '' }} \
             --only "${{ github.event.inputs.only }}"
