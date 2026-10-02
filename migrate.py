@@ -43,6 +43,10 @@ def main():
                      "ALTER TABLE upsc_articles RENAME TO upsc_articles_v1"])
         execute(["DROP INDEX IF EXISTS idx_upsc_paper"])
     execute(["DROP TABLE IF EXISTS upsc_checkpoint"])
+    # Hindi flag (set by the Hindi service); must exist before schema.sql creates its index
+    if names and "upsc_score" in names and "translated_hi" not in names:
+        execute(["ALTER TABLE upsc_articles ADD COLUMN translated_hi INTEGER DEFAULT 0"])
+        print("Added upsc_articles.translated_hi")
 
     with open(os.path.join(HERE, "schema.sql")) as f:
         execute(split_sql(f.read()))

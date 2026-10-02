@@ -22,12 +22,14 @@ CREATE TABLE IF NOT EXISTS upsc_articles (
   model            TEXT,
   prompt_version   TEXT,
   created_at       INTEGER NOT NULL,
-  updated_at       INTEGER NOT NULL
+  updated_at       INTEGER NOT NULL,
+  translated_hi    INTEGER DEFAULT 0          -- set to 1 by the Hindi service; reset when the note is rewritten
 );
 CREATE INDEX IF NOT EXISTS idx_upsc_pub     ON upsc_articles(published_at DESC);
 CREATE INDEX IF NOT EXISTS idx_upsc_paper   ON upsc_articles(gs_paper, published_at DESC);
 CREATE INDEX IF NOT EXISTS idx_upsc_subject ON upsc_articles(subject, published_at DESC);
 CREATE INDEX IF NOT EXISTS idx_upsc_score   ON upsc_articles(upsc_score, published_at DESC);
+CREATE INDEX IF NOT EXISTS idx_upsc_trans_hi ON upsc_articles(translated_hi, published_at DESC);
 
 -- Every article the service has looked at, whatever the outcome.
 -- Selection = eligible main-DB articles NOT done in this ledger (no checkpoint).

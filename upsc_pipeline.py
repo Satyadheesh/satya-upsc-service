@@ -86,6 +86,12 @@ def save_notes(upsc, art, score, n):
          json.dumps(n["mains_dimensions"], ensure_ascii=False), json.dumps(n["keywords"], ensure_ascii=False),
          json.dumps(art["states"], ensure_ascii=False), MODEL_NAME, PROMPT_VERSION, now, now],
     )
+    # New or rewritten note: the Hindi service must (re)translate it. The column is added by the
+    # Hindi service; before that exists this is a no-op.
+    try:
+        upsc.execute("UPDATE upsc_articles SET translated_hi = 0 WHERE article_id = ?", [art["id"]])
+    except Exception:
+        pass
 
 
 def fetch_articles(main, ids):
