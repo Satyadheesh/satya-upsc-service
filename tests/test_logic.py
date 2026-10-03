@@ -147,3 +147,51 @@ class Validation(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Grounding(unittest.TestCase):
+    """v2.6: notes may only state what the article states (quality check of 3 Oct 2026)."""
+    ART = ("Five new sites, including Bagh Cave Paintings and Ginnorgarh Fort, were added to UNESCO's Tentative List. "
+           "This brings India's total to 78 sites. The petitioner argued the rules were arbitrary; the Supreme Court "
+           "issued notice on Tuesday.")
+
+    def note(self, **kw):
+        base = {"exam_type": "prelims", "subject": "history_culture", "node": "heritage", "secondary": [],
+                "why_in_news": "Five sites including Ginnorgarh Fort were added to UNESCO's Tentative List.",
+                "fact_box": "India now has 78 sites on the Tentative List. The additions include Bagh Cave Paintings.",
+                "prelims_pointers": [{"type": "data_fact", "text": "UNESCO Tentative List: India has 78 sites"}],
+                "mains_question": "Discuss the role of the Tentative List.", "mains_dimensions": [], "keywords": []}
+        base.update(kw)
+        from analyzer import Source
+        return validate_notes(base, Source("UNESCO adds five Indian sites", self.ART, 1790900000))
+
+    def test_grounded_note_unchanged(self):
+        n = self.note()
+        self.assertEqual(n["dropped"], [])
+        self.assertEqual(len(n["prelims_pointers"]), 1)
+
+    def test_state_from_memory_dropped(self):
+        n = self.note(prelims_pointers=[{"type": "place", "text": "Ginnorgarh Fort: located in Rajasthan, added to the UNESCO list"},
+                                        {"type": "data_fact", "text": "UNESCO Tentative List: India has 78 sites"}])
+        self.assertEqual([p["text"] for p in n["prelims_pointers"]], ["UNESCO Tentative List: India has 78 sites"])
+        self.assertIn("rajasthan", n["dropped"][0])
+
+    def test_invented_number_and_old_year(self):
+        n = self.note(fact_box="India now has 78 sites on the Tentative List. The list was revised in June 2024.")
+        self.assertNotIn("2024", n["fact_box"])
+        with self.assertRaises(InvalidOutput):
+            self.note(why_in_news="UNESCO added the sites on 157th anniversary of the convention.")
+
+    def test_publication_year_allowed(self):
+        n = self.note(fact_box="India now has 78 sites on the Tentative List as of October 2026. Bagh Cave Paintings were added.")
+        self.assertIn("2026", n["fact_box"])
+
+    def test_trivia_and_off_article_pointers(self):
+        n = self.note(prelims_pointers=[{"type": "person_post", "text": "Audrey Azoulay is the current president of UNESCO"},
+                                        {"type": "institution", "text": "BSF: under the Ministry of Home Affairs"},
+                                        {"type": "data_fact", "text": "UNESCO Tentative List: India has 78 sites"}])
+        self.assertEqual(len(n["prelims_pointers"]), 1)
+
+    def test_fact_box_all_ungrounded_rejected(self):
+        with self.assertRaises(InvalidOutput):
+            self.note(fact_box="The fort was built in 1780 by Gond rulers in Madhya Pradesh.")

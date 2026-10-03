@@ -7,10 +7,11 @@ unit-tested without a model.
 import json
 import os
 import re
+import time
 
 from syllabus import EXAM_TYPES, SYLLABUS, paper_of, prompt_tree
 
-PROMPT_VERSION = "v2.5"
+PROMPT_VERSION = "v2.6"
 MODEL_REPO = os.environ.get("UPSC_MODEL_REPO", "unsloth/gemma-4-12b-it-GGUF")
 MODEL_FILENAME = os.environ.get("UPSC_MODEL_FILE", "gemma-4-12b-it-Q4_K_M.gguf")
 MODEL_NAME = MODEL_FILENAME.rsplit(".", 1)[0]
@@ -28,6 +29,85 @@ INDIA_RE = re.compile(
 
 def india_link(title, body):
     return bool(INDIA_RE.search(f"{title}\n{(body or '')[:4000]}"))
+
+
+# ------------------------------------------------------------------ grounding (v2.6)
+# A note may only state what the article (the part the model saw) states. Checked in code, not trusted to the
+# prompt: numbers and years must appear in the article (1% rounding allowed; a year may also be the publication
+# year), an Indian state or UT may only be named if the article names it, and a prelims pointer must share most
+# of its content words with the article. Ungrounded pointers / fact-box sentences are dropped; an ungrounded
+# why-in-news is retried with feedback.
+NUM_RE = re.compile(r"\d+(?:[.,]\d+)*")
+STATE_RE = re.compile(
+    r"\b(andhra pradesh|arunachal pradesh|assam|bihar|chhattisgarh|goa|gujarat|haryana|himachal pradesh|jharkhand|"
+    r"karnataka|kerala|madhya pradesh|maharashtra|manipur|meghalaya|mizoram|nagaland|odisha|orissa|punjab|rajasthan|"
+    r"sikkim|tamil nadu|telangana|tripura|uttar pradesh|uttarakhand|west bengal|jammu and kashmir|ladakh|puducherry|"
+    r"chandigarh|lakshadweep|andaman and nicobar)\b", re.I)
+WORD_RE = re.compile(r"[a-z][a-z'\-]+|\d+(?:[.,]\d+)*")
+STOP = set("""about above after again against also among and another any are around because been before being below
+between both but by can could did does doing down during each either even ever every few for from further had has have
+having here him his how however into its itself just least less made make many may might more most much must near
+neither never nor not now off often once only other others our out over own per rather same several shall should since
+some such than that the their them then there these they this those though through thus till under until upon very was
+were what when where whether which while who whom whose why will with within without would yet india indian new said
+says year years including""".split())
+TRIVIA_RE = re.compile(
+    r"\b(?:is|was|serves as)\s+(?:the\s+)?(?:current\s+)?(?:prime minister|president|chief minister|governor|capital)\s+of\b|"
+    r"^\S[^:]{0,40}:\s*(?:located|situated)\s+in\b", re.I)
+
+
+def _num(x):
+    return x.replace(",", "")
+
+
+class Source:
+    """What the model saw (title + the first 2,500 characters of the article) as numbers and words."""
+
+    def __init__(self, title, body, published_at=None):
+        self.text = f"{title or ''}\n{(body or '')[:2500]}"
+        self.nums = {_num(n) for n in NUM_RE.findall(self.text)}
+        self.words = _words(self.text)
+        self.states = {m.lower() for m in STATE_RE.findall(self.text)}
+        self.year = time.gmtime(published_at + 19800).tm_year if published_at else None
+
+    def number_ok(self, n):
+        if n in self.nums or (self.year and n in (str(self.year), str(self.year)[2:])):
+            return True
+        try:
+            v = float(n)
+        except ValueError:
+            return False
+        return any(w and abs(v - w) / abs(w) <= 0.01 for w in (_float(m) for m in self.nums) if w is not None)
+
+    def problems(self, text):
+        """What in `text` the article doesn't support: numbers, then states."""
+        bad = []
+        for m in NUM_RE.finditer(text or ""):
+            n = _num(m.group())
+            small = n.isdigit() and int(n) <= 5 and not text[m.end():m.end() + 2].lstrip().startswith("%")
+            if not small and not self.number_ok(n) and n not in bad:
+                bad.append(n)
+        bad += [s for s in {x.lower() for x in STATE_RE.findall(text or "")} if s not in self.states]
+        return bad
+
+    def overlap(self, text):
+        ws = _words(text)
+        return 1.0 if not ws else len(ws & self.words) / len(ws)
+
+
+def _float(x):
+    try:
+        return float(x)
+    except ValueError:
+        return None
+
+
+def _words(text):
+    return {w[:6] for w in WORD_RE.findall((text or "").lower()) if w not in STOP and (len(w) >= 4 or w[0].isdigit())}
+
+
+def _sentences(text):
+    return [s for s in re.split(r"(?<=[.!?])\s+(?=[A-Z0-9\"'(])", text or "") if s.strip()]
 
 
 NODE_OWNER = {n: s for s, (_, _, nodes) in SYLLABUS.items() for n in nodes}
@@ -117,9 +197,12 @@ Fields:
   border or conflict news goes under "security", never geography.
 - secondary: 0-2 other {{"subject","node"}} pairs if the item clearly also fits another paper.
 - why_in_news: one line saying what happened and why it matters for the exam, with the key actor (e.g. "Supreme Court struck down electoral bonds as violating the right to information").
+  Say who did or said what exactly as the article does: a petitioner's argument, an allegation, a demand or a proposal
+  is never a court ruling, an official finding or a decision.
 - fact_box: 2-3 sentences of hard facts from the article: who, what, numbers, dates, bodies.
-- prelims_pointers: 2-5 short items an MCQ could test, each a complete fact, not just a name
+- prelims_pointers: 2-5 short items an MCQ could test, each a complete fact FROM THIS ARTICLE, not just a name
   (e.g. "CEPA: India-UAE trade pact in force since May 2022", "BSF: under the Ministry of Home Affairs").
+  No general-knowledge trivia the article doesn't state (who heads a country, where a city or fort is, what a festival is).
   type: constitution = Article/Schedule; act_bill = a law or bill; scheme = a government scheme or mission;
   institution = an Indian body/agency; international_org = a foreign or multilateral body/agreement;
   report_index = report or ranking and its publisher; place = location with state/country/river;
@@ -133,9 +216,15 @@ Fields:
 - keywords: 3-6 answer-writing terms.
 
 Core Accuracy Rules:
-1. Temporal Precision: Always attach the complete 4-digit calendar year to all deadlines, targets, milestones, and timeframes (e.g. "10 GW by August 2026", never just "by August" or "next year"). If the calendar year is not explicitly stated in the source text, omit the month and specify the broad timeframe or omit the target date. Prelims aspirants memorize exact facts; vague timelines cause exam errors.
-2. Cross-Field Consistency: Targets and dates in why_in_news, fact_box, and prelims_pointers must be mutually consistent (e.g. distinguishing an interim phase target from a final cumulative mission target).
-3. Grounding: Use only facts from the article. Mention an Article number, Act name, date or figure only if the article states it or you are certain. No party-political opinion. Plain English. JSON only."""
+1. Grounding: every fact must be stated in the article: names, places and the state or country they are in, numbers,
+   dates, Article numbers, Act names and years. Do not add background from memory, even if you are sure it is true;
+   leave it out instead. Do not compute new numbers (ages, anniversaries, differences).
+2. Dates: write a year only if the article gives it, or it is the publication year given above and the article clearly
+   means this year ("on Tuesday", "this October"). Never guess an older year. No year known: give the month alone or
+   leave the date out.
+3. Cross-field consistency: targets and dates in why_in_news, fact_box and prelims_pointers must agree (e.g. an interim
+   phase target vs the final cumulative target).
+4. No party-political opinion. Plain English. JSON only."""
 
 NOTES_SCHEMA = {
     "type": "object",
@@ -204,9 +293,34 @@ def validate_gate(data, india=True):
             "reason": _clip(f"{tag}: {data.get('reason') or ''}", 160)}
 
 
-def validate_notes(data):
+def validate_notes(data, src=None):
+    """Clean and check model notes. With `src` (the article as the model saw it), facts the article doesn't
+    support are dropped (pointers, fact-box sentences) or rejected (why-in-news)."""
     if not isinstance(data, dict):
         raise InvalidOutput("notes not an object")
+    dropped = []
+    if src is not None:
+        bad = src.problems(data.get("why_in_news"))
+        if bad:
+            raise InvalidOutput(f"why_in_news states what the article doesn't: {', '.join(bad[:3])}")
+        keep = []
+        for sent in _sentences(" ".join(str(data.get("fact_box") or "").split())):
+            bad = src.problems(sent)
+            (dropped.append(f"fact: {sent} [{', '.join(bad[:3])}]") if bad else keep.append(sent))
+        data = {**data, "fact_box": " ".join(keep)}
+        ptrs = []
+        for p in data.get("prelims_pointers") or []:
+            t = " ".join(str((p or {}).get("text") or "").split())
+            bad = src.problems(t)
+            if bad:
+                dropped.append(f"pointer: {t} [{', '.join(bad[:3])}]")
+            elif TRIVIA_RE.search(t):
+                dropped.append(f"pointer: {t} [trivia]")
+            elif src.overlap(t) < 0.5:
+                dropped.append(f"pointer: {t} [not in article]")
+            else:
+                ptrs.append(p)
+        data = {**data, "prelims_pointers": ptrs}
     node = data.get("node")
     if node not in NODE_OWNER:
         raise InvalidOutput(f"unknown node: {node!r}")
@@ -214,6 +328,9 @@ def validate_notes(data):
     exam_type = data.get("exam_type") if data.get("exam_type") in EXAM_TYPES else "both"
     why = _clip(data.get("why_in_news"), 220)
     fact = _clip(data.get("fact_box"), 600)
+    if src is not None and len(fact) < 30 and any(d.startswith("fact:") for d in dropped):
+        raise InvalidOutput("fact_box states what the article doesn't: "
+                            + "; ".join(d.split("[", 1)[-1].rstrip("]") for d in dropped if d.startswith("fact:"))[:120])
     if len(why) < 15 or len(fact) < 30:
         raise InvalidOutput("why_in_news/fact_box too short")
     secondary, seen = [], {node}
@@ -275,11 +392,13 @@ def validate_notes(data):
         "mains_question": _clip(data.get("mains_question"), 260) or None,
         "mains_dimensions": final_dims,
         "keywords": dedupe(data.get("keywords"), 40, 6),
+        "dropped": dropped,  # what the grounding check removed (not stored; for logs and the eval)
     }
 
 
-def article_prompt(title, body, category):
-    return f"Title: {title}\nCategory: {category or 'n/a'}\nArticle:\n{(body or '')[:2500]}"
+def article_prompt(title, body, category, published_at=None):
+    pub = time.strftime("%d %B %Y", time.gmtime(published_at + 19800)).lstrip("0") if published_at else "n/a"
+    return f"Title: {title}\nCategory: {category or 'n/a'}\nPublished: {pub}\nArticle:\n{(body or '')[:2500]}"
 
 
 class Analyzer:
@@ -311,9 +430,18 @@ class Analyzer:
         return self._retry(lambda: self._call(GATE_SYSTEM, user, GATE_SCHEMA, 80),
                            lambda d: validate_gate(d, india))
 
-    def notes(self, title, body, category):
-        user = article_prompt(title, body, category)
-        return self._retry(lambda: self._call(NOTES_SYSTEM, user, NOTES_SCHEMA, 700), validate_notes)
+    def notes(self, title, body, category, published_at=None):
+        """Notes grounded in the article; a rejected answer is retried once, told what was wrong."""
+        user = article_prompt(title, body, category, published_at)
+        src, err = Source(title, body, published_at), None
+        for _ in range(2):
+            ask = user if err is None else (f"{user}\n\nYour previous answer was rejected: {err}. "
+                                            "Write it again using only facts stated in the article.")
+            try:
+                return validate_notes(self._call(NOTES_SYSTEM, ask, NOTES_SCHEMA, 700), src)
+            except (InvalidOutput, json.JSONDecodeError) as e:
+                err = str(e)
+        raise InvalidOutput(err)
 
 
 def download_model(model_dir):

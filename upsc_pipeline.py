@@ -164,7 +164,9 @@ def main():
                 log.warning("deadline hit during notes")
                 return
             try:
-                n = an.notes(a["title"], a["body"], a["category"])
+                n = an.notes(a["title"], a["body"], a["category"], a["published_at"])
+                for d in n.get("dropped") or []:
+                    log.info(f"[grounding] {a['id']} dropped {d[:160]}")
                 save_notes(upsc, a, g["score"], n)
                 record(upsc, a["id"], "relevant", g["score"], g["reason"])
                 log.info(f"[saved] {a['id']} {n['gs_paper']} › {n['subject']} › {n['syllabus_node']}")
