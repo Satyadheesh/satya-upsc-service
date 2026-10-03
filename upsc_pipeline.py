@@ -139,9 +139,18 @@ def main():
         log.info(f"{len(arts)} articles; loading {MODEL_NAME}")
         an = Analyzer(download_model(MODEL_DIR), n_threads=os.cpu_count())
 
+        # Notes already stored (a rewrite with a newer prompt version): keep the stored gate score, skip the gate
+        ph = ",".join("?" * len(arts)) or "NULL"
+        stored = {int(r[0]): int(r[1] or 0) for r in upsc.execute(
+            f"SELECT article_id, upsc_score FROM upsc_articles WHERE article_id IN ({ph})", [a["id"] for a in arts]).rows}
+
         # pass 1: gate
         keep = []
         for a in arts:
+            if a["id"] in stored:
+                keep.append((a, {"score": stored[a["id"]], "reason": f"notes rewritten with {PROMPT_VERSION}"}))
+                log.info(f"[redo] {a['id']} {a['title'][:70]}")
+                continue
             if time.time() - started > DEADLINE:
                 log.warning("deadline hit; remaining claims will expire and be retried")
                 return

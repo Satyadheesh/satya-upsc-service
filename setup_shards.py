@@ -24,6 +24,8 @@ LOOKBACK_DAYS = int(os.environ.get("LOOKBACK_DAYS") or 365)
 MAX_SCAN = int(os.environ.get("MAX_SCAN") or 5000)        # rows scanned per run, upper bound
 CLAIM_TTL = int(os.environ.get("CLAIM_TTL") or 6 * 3600)  # > job timeout
 RESCAN_DAYS = int(os.environ.get("RESCAN_DAYS") or 3)    # recent articles re-checked every run
+REDO_DAYS = int(os.environ.get("REDO_DAYS") or 30)       # notes this recent are rewritten with a new prompt version
+REDO_PER_RUN = int(os.environ.get("REDO_PER_RUN") or 60)
 PAGE = 1000
 FORCE = os.environ.get("FORCE_UNAPPROVED", "").lower() in ("1", "true", "yes")
 ELIGIBLE = [s.strip() for s in (os.environ.get("ELIGIBLE_STATUSES")
@@ -111,6 +113,26 @@ def main():
             taken.add(aid)
         return last
 
+    # (1b) rewrite recent notes written by an older prompt (gate skipped: the stored score is kept).
+    # Stops reading once every note of the window is on the current version (upsc_meta 'redo_done').
+    redo = 0
+    if get_meta(upsc_c, "redo_done") != PROMPT_VERSION:
+        rows = upsc_c.execute(
+            "SELECT article_id FROM upsc_articles INDEXED BY idx_upsc_pub WHERE published_at >= ? "
+            "AND COALESCE(prompt_version, '') != ? ORDER BY published_at DESC LIMIT ?",
+            [now - REDO_DAYS * 86400, PROMPT_VERSION, REDO_PER_RUN * 3]).rows
+        claimed_now = {int(r[0]) for r in in_query(
+            upsc_c, "SELECT article_id FROM upsc_claims WHERE article_id IN ({ph})", [int(r[0]) for r in rows])} if rows else set()
+        for r in rows:
+            aid = int(r[0])
+            if redo >= REDO_PER_RUN or len(batch) >= BATCH_SIZE:
+                break
+            if aid not in taken and aid not in claimed_now:
+                batch.append(aid); taken.add(aid); redo += 1
+        if not rows:
+            upsc_c.execute("INSERT OR REPLACE INTO upsc_meta (key, value) VALUES ('redo_done', ?)", [PROMPT_VERSION])
+            print(f"redo: every note of the last {REDO_DAYS} days is on {PROMPT_VERSION}")
+
     base = (f"SELECT id, COALESCE(NULLIF(rephrased_title, ''), title), category FROM articles "
             f"WHERE status IN ({st_ph}) AND rephrased_article IS NOT NULL ")
 
@@ -163,7 +185,7 @@ def main():
     upsc_c.close()
 
     shards = make_shards(batch, MAX_SHARDS) or [""]
-    print(f"scanned={scanned} prefiltered={len(prefiltered)} batch={len(batch)} "
+    print(f"scanned={scanned} prefiltered={len(prefiltered)} batch={len(batch)} redo={redo} "
           f"backfill_below={below} shards={len(shards)}")
     # a full batch means there is backlog left -> the workflow chains another run
     emit(shards, more=len(batch) >= BATCH_SIZE)

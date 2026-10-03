@@ -79,5 +79,24 @@ class E2E(unittest.TestCase):
         self.assertIsNotNone(wm)
 
 
+    def test_old_notes_rewritten_then_redo_stops(self):
+        import time as _t
+        now = int(_t.time())
+        for aid, pv in ((900000001, "v2.4"), (900000002, "v2.5")):
+            self.upsc.execute("INSERT INTO upsc_articles (article_id, published_at, upsc_score, exam_type, gs_paper, subject, "
+                              "syllabus_node, why_in_news, fact_box, created_at, updated_at, prompt_version) "
+                              "VALUES (?, ?, 3, 'both', 'GS2', 'polity', 'judiciary', 'w', 'f', 0, 0, ?)", [aid, now - 3600, pv])
+        self.upsc.commit()
+        got = self.run_once()
+        self.assertTrue({900000001, 900000002} <= got)
+        # rewritten -> nothing left -> redo marked done for this version
+        from analyzer import PROMPT_VERSION
+        self.upsc.execute("UPDATE upsc_articles SET prompt_version = ?", [PROMPT_VERSION])
+        self.upsc.execute("DELETE FROM upsc_claims")
+        self.upsc.commit()
+        self.assertFalse({900000001, 900000002} & self.run_once())
+        self.assertEqual(self.upsc.execute("SELECT value FROM upsc_meta WHERE key='redo_done'").fetchone()[0], PROMPT_VERSION)
+
+
 if __name__ == "__main__":
     unittest.main()
