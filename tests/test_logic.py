@@ -213,3 +213,29 @@ class NoCutOffText(unittest.TestCase):
     def test_overlong_why_rejected(self):
         with self.assertRaises(InvalidOutput):
             validate_notes({**GOOD, "why_in_news": "word " * 80})
+
+
+class AlsoTags(unittest.TestCase):
+    def test_unrelated_secondary_dropped(self):
+        from analyzer import supported_secondary
+        t = ("Putin tells Valdai Modi offers very good ideas for Ukraine conflict settlement during talks before the "
+             "BRICS summit; Russia welcomes India's peace efforts through dialogue and diplomacy.")
+        kept, dropped = supported_secondary([{"node": "civil_society"}, {"node": "terrorism_insurgency"}], t)
+        self.assertEqual(kept, [])
+        self.assertEqual(len(dropped), 2)
+
+    def test_related_secondary_kept(self):
+        from analyzer import supported_secondary
+        kept, _ = supported_secondary([{"node": "schemes"}, {"node": "places_in_news"}],
+                                      "Kerala announces a separate housing scheme for SC/ST families")
+        self.assertEqual([x["node"] for x in kept], ["schemes", "places_in_news"])
+
+    def test_overused_primary_moves(self):
+        from analyzer import checked_node
+        node, _ = checked_node("schemes", [{"node": "places_in_news"}],
+                               "Vande Bharat Express crosses Chenab Bridge at 100 kmph on the Katra-Banihal rail section")
+        self.assertEqual(node, "infrastructure")
+        node, _ = checked_node("it_ai", [{"node": "art_culture"}], "Centres of Excellence for classical languages")
+        self.assertEqual(node, "art_culture")
+        node, _ = checked_node("schemes", [], "Vande Bharat Express crosses Chenab Bridge at 100 kmph")
+        self.assertEqual(node, "infrastructure")

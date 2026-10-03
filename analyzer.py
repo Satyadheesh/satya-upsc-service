@@ -252,30 +252,137 @@ NOTES_SCHEMA = {
 }
 
 
-# Nodes the model over-uses: a note filed there must say something about the topic, else it moves to its
-# secondary node, or to Infrastructure for transport news (e.g. a Vande Bharat speed upgrade was filed under
-# 'Nuclear & new energy technology').
-NODE_CHECK = {
-    "energy_nuclear": re.compile(r"\b(?:nuclear|reactors?|uranium|thorium|energy|power|electricity|solar|wind|hydrogen|"
-                                 r"renewables?|batter(?:y|ies)|grid|fuels?|coal|oil|gas|lng|biofuels?|ethanol|emissions?|"
-                                 r"carbon|climate|petroleum|crude)\b", re.I),
-    "it_ai": re.compile(r"\b(?:ai|artificial intelligence|digital\w*|cyber\w*|software|semiconductors?|chips?|data|"
-                        r"internet|comput\w+|technolog\w+|tech|it|quantum|3d|apps?|online|robot\w*|algorithms?|"
-                        r"telecom|5g|6g|deepfakes?|startups?)\b", re.I),
+# Topic signals: words a note must contain to carry a syllabus tag. Used for the "Also" (secondary) tags, which
+# the model adds to ~97% of notes as filler (e.g. Putin on Ukraine "Also GS3 · Terrorism & insurgency (J&K,
+# North-East)"), and for the primary tag of the few nodes the model over-uses. Matched on the note's own text
+# (title, why-in-news, facts, mains question), not the whole article.
+_SIGNAL_WORDS = {
+    # GS1 history & culture
+    "art_culture": r"art|arts|artist\w*|architect\w*|culture|cultural|dance|music\w*|paint\w*|sculpt\w*|festival\w*|literature|literary|theatre|craft\w*|classical",
+    "ancient_medieval": r"ancient|medieval|mughal\w*|maurya\w*|gupta|chola\w*|vijayanagar\w*|sultanate|harappa\w*|vedic|buddhis\w*|jain\w*|inscription\w*|dynasty|maratha\w*|empire",
+    "modern_freedom": r"freedom (?:struggle|fighter\w*|movement)|independence movement|british|colonial|gandhi|nehru|ambedkar|non-cooperation|quit india|dandi|1857|swadeshi|revolt",
+    "post_independence": r"post-independence|integration of (?:princely )?states|linguistic states|partition|1947|reorgani[sz]ation",
+    "world_history": r"world war|revolution|cold war|colonialism|imperialism|renaissance|industrial revolution",
+    "heritage": r"heritage|unesco|gi tag|geographical indication|monument\w*|asi\b|archaeolog\w*|world heritage",
+    # GS1 society
+    "women": r"wom[ae]n|gender|girl\w*|female|maternal|dowry|sexual harassment|feminis\w*",
+    "population": r"population|demograph\w*|migra\w*|fertility|census|ageing|aging|birth rate|super-aged",
+    "urbanisation": r"urban\w*|cit(?:y|ies)|municipal\w*|slum\w*|smart cit\w*|metropolitan",
+    "communalism_secularism": r"communal\w*|secular\w*|regionalism|religio\w*|riot\w*|sectarian",
+    "diversity": r"sc/st|caste\w*|tribe\w*|tribal|adivasi\w*|scheduled castes?|scheduled tribes?|obc|dalit\w*|diversity|ethnic\w*",
+    "globalisation_society": r"globali[sz]ation|global culture|consumeris\w*|westerni[sz]ation",
+    # GS1 geography
+    "physical": r"landform\w*|ocean\w*|glacier\w*|river\w*|mountain\w*|himalaya\w*|plateau\w*|monsoon|climate|current\w*",
+    "phenomena": r"earthquake\w*|cyclone\w*|volcan\w*|tsunami\w*|landslide\w*|el ni[nñ]o|la ni[nñ]a|flood\w*|drought\w*|monsoon|heatwave\w*",
+    "resources": r"mineral\w*|resource\w*|coal|iron ore|rare earth\w*|lithium|reserves|groundwater|forest\w*",
+    "industry_location": r"industr\w*|plant|factor(?:y|ies)|cluster\w*|corridor\w*",
+    # GS2 polity
+    "constitution": r"constitution\w*|amendment\w*|basic structure|article \d+|schedule",
+    "fundamental_rights": r"fundamental rights?|article (?:1[4-9]|2[0-9]|3[0-2])|directive principles?|dpsp|fundamental dut\w*|right to|privacy|free speech|freedom of",
+    "parliament": r"parliament\w*|lok sabha|rajya sabha|legislat\w*|assembly|speaker|mla\w*|mp\b|mps\b|bill\b|session",
+    "executive": r"president|prime minister|pm\b|governor\w*|chief minister|cm\b|cabinet|council of ministers|ordinance",
+    "judiciary": r"court\w*|judge\w*|judicia\w*|justice|cji|bench|verdict\w*|ruling|petition\w*|tribunal\w*",
+    "federalism": r"federal\w*|centre-state|centre and state\w*|inter-state|interstate|state government\w*|finance commission|gst council|governor",
+    "elections": r"election\w*|electoral|voter\w*|ballot\w*|poll\w*|eci\b|election commission|by-?election\w*|evm\w*",
+    "constitutional_bodies": r"cag\b|comptroller|upsc|finance commission|election commission|ncsc|ncst|ncbc|attorney general|constitutional bod\w*",
+    "statutory_bodies": r"sebi|rbi|trai|cci|nhrc|ngt|regulator\w*|authority|commission|tribunal\w*|statutory",
+    "local_government": r"panchayat\w*|gram sabha|municipal\w*|local bod(?:y|ies)|urban local|ward\w*|zila parishad|nagar",
+    # GS2 governance
+    "schemes": r"scheme\w*|yojana|mission|programme\w*|program\b|subsid\w*|welfare|initiative\w*|policy|policies|guidelines?",
+    "transparency": r"rti\b|right to information|transparen\w*|accountab\w*|lokpal|lokayukta|corruption|whistle-?blower\w*|audit\w*|disclosure\w*",
+    "egovernance": r"e-governance|digital|online|portal\w*|app\b|aadhaar|digili?ocker|dbt\b|citizen services?|upi|fastag",
+    "civil_services": r"ias\b|ips\b|ifs\b|civil servi\w*|bureaucra\w*|officer\w*|cadre|secretar(?:y|ies)|collector\w*|deputation",
+    "civil_society": r"ngo\w*|non-governmental|self-help group\w*|shg\w*|civil society|voluntary|volunteer\w*|cooperative\w*|activist\w*|trust\b|foundation",
+    "legislation": r"bill\w*|act\b|acts\b|ordinance\w*|law\w*|legislat\w*|amendment\w*|rules\b|notif\w*",
+    # GS2 social justice
+    "vulnerable_sections": r"scheduled castes?|scheduled tribes?|sc/st|dalit\w*|minorit\w*|disab\w*|divyang\w*|elderly|senior citizens?|child\w*|transgender\w*|orphan\w*|vulnerable|marginali[sz]ed",
+    "health": r"health\w*|hospital\w*|disease\w*|medic\w*|doctor\w*|patient\w*|vaccin\w*|drug\w*|pharma\w*|nutrition|leprosy|cancer|tb\b|tuberculosis|pandemic|epidemic|aiims",
+    "education": r"educat\w*|school\w*|universit\w*|college\w*|student\w*|teacher\w*|ncert|ugc|nep\b|curriculum|textbook\w*|exam\w*",
+    "poverty_hunger": r"povert\w*|hunger|nutrition|malnutrition|food security|ration\w*|pds\b|bpl\b|poor",
+    "human_resources": r"skill\w*|training|workforce|labour|labor|employab\w*|jobs?\b|apprentice\w*",
+    # GS2 IR
+    "neighbourhood": r"pakistan|china|chinese|nepal|bhutan|bangladesh|sri lanka|myanmar|afghanistan|maldives|saarc|lac\b|loc\b",
+    "bilateral": r"bilateral|foreign minister|external affairs|jaishankar|summit|ambassador|high commission\w*|embassy|visit\w*|talks|ties|partnership|treaty|mou\b|agreement",
+    "groupings": r"quad|brics|sco\b|g20|g7|asean|bimstec|ibsa|saarc|groupings?|i2u2|imec",
+    "institutions": r"\bun\b|united nations|wto|imf|world bank|who\b|unesco|unga|security council|unfccc|iaea|interpol|fatf|ilo\b",
+    "global_impact_on_india": r"tariff\w*|sanction\w*|us\b|u\.s\.|united states|america\w*|european union|eu\b|oil price\w*|global|trump|federal reserve|fed\b|treasury|visa\w*|h-1b",
+    "diaspora": r"diaspora|indian-origin|indians abroad|overseas indians?|nri\w*|migrant workers?|expatriate\w*|evacuat\w*",
+    # GS3 economy
+    "growth_indicators": r"gdp|growth|inflation|cpi|wpi|economy|economic|macro\w*|recession|output|iip\b",
+    "monetary_banking": r"rbi|reserve bank|bank\w*|repo|interest rates?|monetary|credit|loan\w*|npa\w*|deposit\w*|upi|payments?|mdr\b|fintech|insurance",
+    "fiscal_budget": r"budget\w*|fiscal|tax\w*|gst|revenue|deficit|expenditure|borrowing\w*|cess|excise|duty|duties",
+    "external_trade": r"trade|export\w*|import\w*|fdi|foreign direct investment|fpi\w*|current account|tariff\w*|rupee|forex|fta\b|free trade",
+    "industry_investment": r"industr\w*|manufactur\w*|invest\w*|msme\w*|startup\w*|companies|company|firm\w*|plant\w*|pli\b|semiconductor\w*|production",
+    "employment_inclusion": r"employ\w*|jobs?\b|unemploy\w*|labour|labor|workers?|wages?|inclusive|plfs|mgnregs|epfo|gig",
+    "infrastructure": r"infrastructure|rail\w*|trains?|road\w*|highway\w*|port\w*|airport\w*|bridge\w*|metro|power|electricity|energy|grid|pipeline\w*|logistic\w*|data cent(?:re|er)s?|telecom|toll",
+    "capital_markets": r"sebi|stock\w*|shares?|equit(?:y|ies)|market\w*|ipo\w*|mutual funds?|bonds?|sensex|nifty|investors?|derivative\w*|fpi\w*",
+    # GS3 agriculture
+    "cropping_irrigation": r"crop\w*|irrigat\w*|kharif|rabi|sowing|harvest\w*|farm\w*|agricultur\w*|paddy|wheat|rice|seeds?|soil|canal\w*|water",
+    "msp_procurement": r"msp|minimum support price|procure\w*|pds\b|food security|fci\b|buffer stock|ration",
+    "agri_subsidies": r"subsid\w*|fertili[sz]er\w*|pm-kisan|kisan|farm support|crop insurance|loan waiver",
+    "food_processing": r"food processing|cold chain|supply chain|warehous\w*|processing|value chain",
+    "land_reforms": r"land reform\w*|land records?|tenancy|land ceiling|land acquisition|land titles?|patta",
+    "allied": r"livestock|dairy|milk|fisher\w*|fish\b|poultry|animal husbandry|cattle|aquaculture|sericulture",
+    # GS3 science & tech
+    "space": r"space|isro|satellite\w*|orbit\w*|launch\w*|rocket\w*|nasa|astronaut\w*|lunar|moon|mars|gaganyaan|in-space",
+    "defence_tech": r"defen[cs]e|missile\w*|aircraft|fighter\w*|jet\w*|tank\w*|drdo|hal\b|warship\w*|navy|naval|army|air force|iaf|weapon\w*|drone\w*",
+    "biotech_health": r"biotech\w*|gene\w*|genom\w*|dna|vaccin\w*|virus\w*|viral|research\w*|scientist\w*|clinical|medic\w*|drug\w*|protein\w*|cell\w*|disease\w*",
+    "it_ai": r"ai\b|artificial intelligence|digital\w*|cyber\w*|software|semiconductor\w*|chips?\b|data|internet|comput\w+|technolog\w+|tech\b|it\b|quantum|3d|apps?\b|online|robot\w*|algorithm\w*|telecom|5g|6g|deepfake\w*|startup\w*",
+    "energy_nuclear": r"nuclear|reactors?|uranium|thorium|energy|power|electricity|solar|wind|hydrogen|renewables?|batter(?:y|ies)|grid|fuels?|coal|oil|gas|lng|biofuels?|ethanol|emissions?|carbon|climate|petroleum|crude",
+    "ipr": r"patent\w*|copyright\w*|trademark\w*|intellectual property|ipr\b|gi tag|geographical indication",
+    # GS3 environment
+    "biodiversity": r"biodivers\w*|species|conservation|wildlife|forest\w*|ecosystem\w*|flora|fauna|endemic|endangered",
+    "species_protected_areas": r"tiger\w*|elephant\w*|leopard\w*|vulture\w*|species|sanctuar(?:y|ies)|national park\w*|reserve\w*|wetland\w*|ramsar|protected area\w*",
+    "pollution": r"pollut\w*|air quality|aqi|emission\w*|plastic\w*|waste|sewage|smog|stubble|firecracker\w*|contaminat\w*",
+    "climate_change": r"climate|warming|carbon|emission\w*|net zero|unfccc|cop\d+|paris agreement|greenhouse|heatwave\w*|el ni[nñ]o|glacier\w*|ice loss",
+    "env_laws_eia": r"environment(?:al)? (?:law|clearance|impact)|eia\b|forest (?:rights|conservation)|ngt|moefcc|environment ministry|wildlife protection act|clearance\w*",
+    # GS3 disaster
+    "natural_disasters": r"flood\w*|cyclone\w*|earthquake\w*|landslide\w*|drought\w*|disaster\w*|heatwave\w*|tsunami\w*|cloudburst\w*|relief|rescue",
+    "dm_framework": r"ndma|sdma|ndrf|sdrf|disaster management|early warning|preparedness|relief fund",
+    # GS3 security
+    "lwe": r"maoist\w*|naxal\w*|left-wing extremis\w*|lwe\b|red corridor",
+    "terrorism_insurgency": r"terror\w*|insurgen\w*|militan\w*|jammu|kashmir|j&k|manipur|naga\w*|ulfa|north-?east\w*|uapa|extremis\w*|jihad\w*|jaish|lashkar|infiltrat\w*",
+    "border_management": r"border\w*|lac\b|loc\b|bsf|itbp|ssb\b|assam rifles|fenc\w*|infiltrat\w*|smuggl\w*|pla\b",
+    "cyber": r"cyber\w*|hack\w*|malware|ransomware|phishing|data breach\w*|cert-in|online fraud|digital arrest",
+    "money_laundering": r"money laundering|pmla|enforcement directorate|\bed\b|hawala|organi[sz]ed crime|smuggl\w*|drug\w*|narcotic\w*|gang\w*|fraud\w*",
+    "security_forces": r"army|police|crpf|bsf|cisf|nsg|paramilitary|security forces?|armed forces|soldier\w*|jawan\w*|agnipath|nia\b",
+    # GS4 ethics
+    "public_admin_ethics": r"ethic\w*|integrity|conduct|accountab\w*|public servants?|officer\w*|administration",
+    "probity_corruption": r"corrupt\w*|brib\w*|probity|integrity|lokpal|vigilance|misconduct",
+    "tech_business_ethics": r"ethic\w*|privacy|data protection|ai\b|artificial intelligence|corporate governance|deepfake\w*|misinformation",
 }
+
+# places_in_news and case_study have no word list: always allowed.
+NODE_SIGNALS = {n: re.compile(r"(?<![\w-])(?:" + w + r")(?![\w])", re.I) for n, w in _SIGNAL_WORDS.items()}
+PRIMARY_CHECK = {"energy_nuclear", "it_ai", "schemes", "civil_services", "transparency", "civil_society"}
 TRANSPORT_RE = re.compile(r"\b(?:rail\w*|trains?|bridges?|highways?|roads?|expressways?|ports?|airports?|metro|"
                           r"tunnels?|vande bharat)\b", re.I)
 
 
+def node_supported(node, text):
+    pat = NODE_SIGNALS.get(node)
+    return bool(pat is None or pat.search(text or ""))
+
+
+def supported_secondary(secondary, text):
+    """(kept, dropped) secondary tags: kept only if the note talks about that topic."""
+    kept, dropped = [], []
+    for x in secondary or []:
+        (kept if node_supported(x.get("node"), text) else dropped).append(x)
+    return kept, dropped
+
+
 def checked_node(node, secondary, text):
-    """(node, secondary) after the NODE_CHECK sanity check on `text` (title + why-in-news + facts)."""
-    pat = NODE_CHECK.get(node)
-    if not pat or pat.search(text or ""):
+    """(node, secondary): a primary tag from PRIMARY_CHECK that the note doesn't talk about moves to Infrastructure
+    for transport news, else to its first supported secondary tag (not Places in news); otherwise it stays."""
+    secondary, _ = supported_secondary(secondary, text)
+    if node not in PRIMARY_CHECK or node_supported(node, text):
         return node, secondary
-    if secondary:
-        return secondary[0]["node"], secondary[1:]
     if TRANSPORT_RE.search(text or "") and "infrastructure" in NODE_OWNER:
-        return "infrastructure", secondary
+        return "infrastructure", [x for x in secondary if x.get("node") != "infrastructure"]
+    real = [x for x in secondary if x.get("node") in NODE_SIGNALS]  # not the always-allowed places/case-study tags
+    if real:
+        return real[0]["node"], [x for x in secondary if x is not real[0]]
     return node, secondary
 
 
@@ -382,7 +489,11 @@ def validate_notes(data, src=None):
         if n in NODE_OWNER and n not in seen and NODE_OWNER[n] != subject:
             secondary.append({"subject": NODE_OWNER[n], "node": n})
             seen.add(n)
-    node, secondary = checked_node(node, secondary, f"{src.text[:300] if src is not None else ''} {why} {fact}")
+    note_text = " ".join([src.text.split("\n", 1)[0] if src is not None else "", why, fact,
+                          str(data.get("mains_question") or "")])
+    for x in supported_secondary(secondary, note_text)[1]:
+        dropped.append(f"secondary: {x['node']} [note is not about it]")
+    node, secondary = checked_node(node, secondary, note_text)
     subject = NODE_OWNER[node]
     secondary = [x for x in secondary if x["subject"] != subject]
     pointers = []

@@ -53,6 +53,9 @@ def main():
          f"| false positives on `no` | {pct(len(fp), len(no))} | ≤ {TARGET_FP:.0%} |",
          f"| recall on `yes` | {pct(len(tp), len(yes))} | ≥ {TARGET_RECALL:.0%} |",
          f"| subject accuracy | {pct(len(subj_ok), len(noted))} | ≥ {TARGET_SUBJECT:.0%} |",
+         f"| 'Also' tags kept / dropped as unrelated (checked on the note's words) | "
+         f"{sum(len(r['notes'].get('secondary') or []) for r in noted)} / "
+         f"{sum(1 for r in noted for d in r['notes'].get('dropped') or [] if d.startswith('secondary:'))} | – |",
          f"| borderline passed | {pct(len(passed(border)), len(border))} | – |",
          f"| errors | {len(errors)} | 0 |",
          "", "v1 baseline: false positives 64%, recall 82%. v2.0: FP 1%, recall 27%. v2.1: FP 34%, recall 100%. v2.2 (7B): FP 26%, recall 100%. v2.3: Qwen14B FP 21%/recall 91%, Gemma4-12B FP 3%/recall 73%, Gemma4-E4B FP 25%/recall 91%.", "",
@@ -73,7 +76,10 @@ def main():
             L += [f"**{r['title'][:90]}** — {n['gs_paper']} › {n['subject']} › {n['syllabus_node']} {mark}",
                   f"- Why: {n['why_in_news']}",
                   *[f"- [{p['type']}] {p['text']}" for p in n["prelims_pointers"]],
-                  f"- Q: {n['mains_question']}", ""]
+                  f"- Q: {n['mains_question']}",
+                  f"- Also: {', '.join(x['node'] for x in n.get('secondary') or []) or '—'}"
+                  + (f" (dropped: {', '.join(d.split(' ')[1] for d in n.get('dropped') or [] if d.startswith('secondary:'))})"
+                     if any(d.startswith('secondary:') for d in n.get('dropped') or []) else ""), ""]
     if errors:
         L += ["### Errors", *[f"- {r['title'][:80]}: {r.get('reason') or r.get('notes_error')}" for r in errors]]
     md = "\n".join(L)

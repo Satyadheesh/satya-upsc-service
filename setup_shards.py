@@ -10,7 +10,7 @@ import time
 
 import libsql_client
 
-from analyzer import MODEL_NAME, NODE_CHECK, NODE_OWNER, PROMPT_VERSION, checked_node
+from analyzer import MODEL_NAME, NODE_OWNER, PROMPT_VERSION, checked_node, supported_secondary
 from syllabus import paper_of
 from selection import MAX_ATTEMPTS, is_done, make_shards, prefilter
 
@@ -51,32 +51,41 @@ def get_meta(c, key, default=None):
     return r[0][0] if r else default
 
 
-def retag_once(upsc_c, now, marker="retag_nodes_v1"):
-    """One-time: notes of the last REDO_DAYS days filed under an over-used node (analyzer.NODE_CHECK) that say
-    nothing about it move to their secondary node / Infrastructure, as new notes do. Few rows, cheap."""
+def retag_once(upsc_c, now, marker="retag_nodes_v2"):
+    """One-time, every stored note: drop "Also" (secondary) tags the note doesn't talk about, and move an
+    over-used primary tag the note doesn't talk about (analyzer.checked_node), as new notes are handled.
+    Reads each note once (~5k rows); writes only the notes that change. v1 (3 Oct) checked two nodes only."""
     if get_meta(upsc_c, marker):
         return
-    ph = ",".join("?" * len(NODE_CHECK))
-    rows = upsc_c.execute(f"SELECT article_id, syllabus_node, secondary, why_in_news, fact_box, keywords FROM upsc_articles "
-                          f"WHERE published_at >= ? AND syllabus_node IN ({ph})",
-                          [now - REDO_DAYS * 86400, *NODE_CHECK]).rows
-    moved = 0
-    for aid, node, sec, why, fact, kws in rows:
-        try:
-            secondary = [x for x in json.loads(sec or "[]") if isinstance(x, dict) and x.get("node") in NODE_OWNER]
-            words = " ".join(k for k in json.loads(kws or "[]") if isinstance(k, str))
-        except ValueError:
-            secondary, words = [], ""
-        new, rest = checked_node(node, secondary, f"{why} {fact} {words}")
-        if new != node:
-            subj = NODE_OWNER[new]
+    moved = cleaned = total = 0
+    last = 1 << 62
+    while True:
+        rows = upsc_c.execute("SELECT article_id, syllabus_node, secondary, why_in_news, fact_box, mains_question "
+                              "FROM upsc_articles WHERE article_id < ? ORDER BY article_id DESC LIMIT 500", [last]).rows
+        if not rows:
+            break
+        for aid, node, sec, why, fact, mains in rows:
+            last = int(aid)
+            total += 1
+            try:
+                secondary = [x for x in json.loads(sec or "[]") if isinstance(x, dict) and x.get("node") in NODE_OWNER]
+            except ValueError:
+                secondary = []
+            text = f"{why or ''} {fact or ''} {mains or ''}"
+            kept, _ = supported_secondary(secondary, text)
+            new, rest = checked_node(node, kept, text)
+            subj = NODE_OWNER.get(new)
             rest = [x for x in rest if NODE_OWNER.get(x.get("node")) != subj]
+            if new == node and len(rest) == len(secondary):
+                continue
+            if new != node:
+                moved += 1
+                print(f"retag {aid}: {node} -> {new}")
+            cleaned += len(secondary) != len(rest)
             upsc_c.execute("UPDATE upsc_articles SET syllabus_node = ?, subject = ?, gs_paper = ?, secondary = ?, updated_at = ? "
                            "WHERE article_id = ?", [new, subj, paper_of(subj), json.dumps(rest), now, int(aid)])
-            moved += 1
-            print(f"retag {aid}: {node} -> {new}")
     upsc_c.execute("INSERT OR REPLACE INTO upsc_meta (key, value) VALUES (?, ?)", [marker, str(now)])
-    print(f"retag: {moved} of {len(rows)} notes moved")
+    print(f"retag: {total} notes read, {cleaned} lost unrelated 'Also' tags, {moved} moved to another primary tag")
 
 
 def main():
