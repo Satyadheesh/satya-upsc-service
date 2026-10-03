@@ -16,4 +16,5 @@ print("processed per day (last 7d):", [tuple(r) for r in u.execute("SELECT date(
 print("notes last 30d by prompt:", [tuple(r) for r in u.execute("SELECT prompt_version, COUNT(*) FROM upsc_articles WHERE published_at >= ? GROUP BY prompt_version ORDER BY 2 DESC", [now - 30 * 86400]).rows])
 print("rewritten today (updated_at, v2.7):", u.execute("SELECT COUNT(*) FROM upsc_articles WHERE prompt_version = 'v2.7' AND updated_at >= ?", [now - 86400]).rows)
 print("failed last 24h by reason:", [tuple(r) for r in u.execute("SELECT substr(reason,1,70), COUNT(*) FROM upsc_processed WHERE verdict = 'failed' AND processed_at >= ? GROUP BY 1 ORDER BY 2 DESC LIMIT 8", [now - 86400]).rows])
+print("129835:", u.execute("SELECT syllabus_node, subject, prompt_version FROM upsc_articles WHERE article_id = 129835").rows)
 m.close(); u.close()
