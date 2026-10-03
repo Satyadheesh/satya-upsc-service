@@ -105,3 +105,5 @@ v1 baseline: false positives 64%, recall 82%. v2.0: FP 1%, recall 27%. v2.1: FP 
 - [institution] Booth-level officers (BLOs) are responsible for collecting filled-in forms and uploading data to the ECI website via dedicated apps.
 - Q: Discuss the significance of digitising electoral rolls in ensuring the integrity of the democratic process and the challenges faced in achieving universal coverage.
 
+
+Approved v2.6|gemma-4-12b-it-Q4_K_M for production.
