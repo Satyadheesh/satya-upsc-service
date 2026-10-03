@@ -13,4 +13,7 @@ print("oldest article:", m.execute("SELECT MIN(scraped_at), MIN(id) FROM article
 done_below = u.execute("SELECT COUNT(*) FROM upsc_processed WHERE article_id >= ?", [0]).rows
 print("claims open:", u.execute("SELECT COUNT(*) FROM upsc_claims").rows)
 print("processed per day (last 7d):", [tuple(r) for r in u.execute("SELECT date(processed_at,'unixepoch') d, COUNT(*) FROM upsc_processed WHERE processed_at >= ? GROUP BY d ORDER BY d", [now - 7 * 86400]).rows])
+print("notes last 30d by prompt:", [tuple(r) for r in u.execute("SELECT prompt_version, COUNT(*) FROM upsc_articles WHERE published_at >= ? GROUP BY prompt_version ORDER BY 2 DESC", [now - 30 * 86400]).rows])
+print("rewritten today (updated_at, v2.7):", u.execute("SELECT COUNT(*) FROM upsc_articles WHERE prompt_version = 'v2.7' AND updated_at >= ?", [now - 86400]).rows)
+print("failed last 24h by reason:", [tuple(r) for r in u.execute("SELECT substr(reason,1,70), COUNT(*) FROM upsc_processed WHERE verdict = 'failed' AND processed_at >= ? GROUP BY 1 ORDER BY 2 DESC LIMIT 8", [now - 86400]).rows])
 m.close(); u.close()
