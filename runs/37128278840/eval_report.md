@@ -1,0 +1,107 @@
+## UPSC eval — prompt v2.7, gemma-4-12b-it-Q4_K_M (score ≥ 3) — ✅ PASS
+
+| metric | result | target |
+|---|---|---|
+| false positives on `no` | 3/87 (3%) | ≤ 10% |
+| recall on `yes` | 10/11 (91%) | ≥ 80% |
+| subject accuracy | 10/10 (100%) | ≥ 80% |
+| borderline passed | 7/22 (32%) | – |
+| errors | 0 | 0 |
+
+v1 baseline: false positives 64%, recall 82%. v2.0: FP 1%, recall 27%. v2.1: FP 34%, recall 100%. v2.2 (7B): FP 26%, recall 100%. v2.3: Qwen14B FP 21%/recall 91%, Gemma4-12B FP 3%/recall 73%, Gemma4-E4B FP 25%/recall 91%.
+
+### By threshold
+| keep score ≥ | FP on `no` | recall on `yes` | borderline kept |
+|---|---|---|---|
+| 2 | 12/87 (14%) | 10/11 (91%) | 9/22 (41%) |
+| 3 (current) | 3/87 (3%) | 10/11 (91%) | 7/22 (32%) |
+| 4 | 0/87 (0%) | 4/11 (36%) | 0/22 (0%) |
+
+### False positives
+- s=3 APCRDA project office bags IGBC Net Zero Energy rating - The Hindu — _environment/state: First government building in India to receive IGBC Net Zero Energy Rating._
+- s=3 KFRI signs MoU with Odisha Bamboo Development Agency - The Hindu — _law_policy_scheme/national: Inter-state cooperation on bamboo research, technology transfer, and livelihood schemes._
+- s=3 Kerala government orders rollback of UGC, AICTE incentive increments - The Hindu — _law_policy_scheme/state: State government policy on academic pay revisions and administrative jurisdiction._
+
+### Missed
+- s=1 Hyderabad’s NTR Stadium turns sea of faith as thousands observe 350th martyrdom of Guru Te — _history_culture/local: Local religious event; minor relevance for history/culture section._
+
+### Sample notes
+**Droupadi Murmu becomes first President to address Odisha Assembly - The Hindu** — GS2 › polity › constitution ✅
+- Why: President Droupadi Murmu became the first President of India to address the Odisha Legislative Assembly, returning to the house where she began her legislative career in 2000.
+- [data_fact] President Murmu began her legislative career in 2000
+- [data_fact] The Subhadra scheme is a state initiative for women's empowerment in Odisha
+- [data_fact] Odisha provides an additional Rs. 800 per quintal as an input subsidy over and above the MSP for paddy
+- Q: Discuss the significance of the President's role in fostering federal cooperation and the importance of legislative dignity in state assemblies.
+
+**Manipur's violence-hit people, seeking to return home, clash with security forces - The Hi** — GS3 › security › lwe ✅
+- Why: Displaced people in Manipur clashed with security forces in Imphal East district while attempting to return to their homes in Senapati district.
+- [place] Imphal East district: Location of the clash between IDPs and security forces.
+- [place] Senapati district: Location of the homes toward which displaced people were marching.
+- [data_fact] May 2023: Month when ethnic violence first broke out in Manipur.
+- [data_fact] November 21: Date the Sangai Festival began, coinciding with a period of heightened tension.
+- Q: Analyze the challenges in managing internal displacement and restoring communal harmony in conflict-affected regions like Manipur.
+
+**India-UAE FTA Talks: Market access, gold quota and data sharing reviewed under CEPA - The ** — GS2 › ir › bilateral ✅
+- Why: The Commerce Ministry announced that a joint committee under the India-UAE Comprehensive Economic Partnership Agreement (CEPA) reviewed market access, gold import quotas, and data sharing to bolster economic ties.
+- [data_fact] Bilateral trade between India and UAE crossed $100 billion in 2024-25.
+- [data_fact] Target for non-oil and non-precious metal trade is $100 billion by 2030.
+- [institution] APEDA: Agricultural and Processed Food Products Export Development Authority, involved in food safety MoU.
+- [international_org] CEPA: Comprehensive Economic Partnership Agreement between India and UAE.
+- [data_fact] India uses a transparent competitive bidding process for gold Tariff Rate Quota (TRQ) allocation.
+- Q: Examine the significance of Comprehensive Economic Partnership Agreements (CEPA) in diversifying India's trade basket and enhancing regulatory cooperation in the Middle East.
+
+**Proposal for new design of border fencing under consideration of Centre: BSF IG - The Hind** — GS3 › security › border_management ✅
+- Why: The BSF Inspector General (IG) stated that the Ministry of Home Affairs is considering a proposal for a new design of barbed wire fencing along the India-Bangladesh border to replace aging infrastructure.
+- [data_fact] India-Bangladesh international border length: 4,096 km
+- [data_fact] Tripura's share of the India-Bangladesh border: 856 km
+- [institution] Ministry of Home Affairs (MHA) is the nodal ministry for border fencing proposals
+- [person_post] The BSF IG mentioned the BSF and Bangladesh Border Guard (BGB) conduct scheduled joint patrolling
+- Q: Discuss the challenges of managing porous international borders and the significance of infrastructure like fencing in ensuring national security.
+
+**What is going wrong in Tamil Nadu’s SIR? | Focus Tamil Nadu - The Hindu** — GS2 › polity › elections ✅
+- Why: The Special Intensive Revision (SIR) in Tamil Nadu is facing operational failures, potentially leading to the deletion of genuine voters due to unrealistic deadlines and confusing documentation.
+- [data_fact] The SIR process in Tamil Nadu is currently facing issues with 'unrealistic deadlines' and 'confusing forms' as reported in November 2025.
+- Q: Critically analyze the challenges in maintaining the integrity of electoral rolls during intensive revision processes and suggest measures to ensure inclusive voter participation.
+
+**PM Modi calls Sri Lankan President to offer continued support with cyclone relief - The Hi** — GS2 › ir › neighbourhood ✅
+- Why: Prime Minister Narendra Modi assured Sri Lankan President Anura Kumara Dissanayake of continued support under Operation Sagar Bandhu to assist with Cyclone Ditwah relief.
+- [data_fact] Operation Sagar Bandhu: India's relief and rescue operation for Sri Lanka following Cyclone Ditwah.
+- [data_fact] India has provided 53 tonnes of relief material to Sri Lanka as of December 1, 2025.
+- [place] Cyclone Ditwah: Natural disaster affecting Sri Lanka.
+- [data_fact] Rescued nationals include citizens from India, Sri Lanka, Germany, Slovenia, UK, South Africa, Poland, Belarus, Iran, Australia, Pakistan, and Bangladesh.
+- [institution] NDRF: Teams were dispatched on November 29 for search and rescue operations.
+- Q: Discuss the significance of India's Humanitarian Assistance and Disaster Relief (HADR) initiatives in strengthening its neighborhood diplomacy with Sri Lanka.
+
+**EC tells Supreme Court Centre’s citizenship scrutiny powers are limited - The Hindu** — GS2 › polity › constitution ✅
+- Why: The Election Commission of India (ECI) submitted an affidavit to the Supreme Court arguing that the Centre's exclusive power to scrutinize citizenship is limited to cases of voluntary acquisition of foreign citizenship
+- [constitution] Article 324: Empowers the Election Commission to supervise and control the conduct of elections.
+- [constitution] Article 326: Establishes Indian citizenship as a constitutional precondition for entry into the voter list.
+- [act_bill] Section 9 of the Citizenship Act, 1955: Vests authority in the Centre to determine the termination of citizenship due to voluntary acquisition of foreign citizenship.
+- [data_fact] The ECI submitted a 184-page affidavit in the Special Intensive Revision (SIR) case.
+- Q: Examine the constitutional balance between the Election Commission's plenary powers under Article 324 and the Union Government's exclusive jurisdiction over citizenship matters.
+
+**Putin is coming to India in December 2025: Which other Russian presidents visited India, i** — GS2 › ir › bilateral ✅
+- Why: The Ministry of External Affairs announced that President Vladimir Putin will visit India from 4 to 5 December 2025 for the India-Russia Annual Summit.
+- [data_fact] Putin's visit to India is scheduled for 4 to 5 December 2025.
+- [data_fact] The visit marks the twenty-third India-Russia Annual Summit.
+- [person_post] Vladimir Putin became Acting President of Russia on 31 December 1999 and was formally sworn in on 7 May 2000.
+- [data_fact] The summit will review progress in defence, space, energy, and trade cooperation.
+- Q: Discuss the evolution of the 'Special and Privileged Strategic Partnership' between India and Russia in the context of contemporary global security challenges.
+
+**Jakarta overtakes Tokyo as world’s most populous city, according to UN | Indonesia | The G** — GS1 › society › urbanisation ✅
+- Why: The UN Department of Economic and Social Affairs released the World Urbanisation Prospects 2025 report, revealing Jakarta has overtaken Tokyo as the world's most populous city due to new methodology.
+- [data_fact] Jakarta population: 42 million
+- [data_fact] Dhaka population: 37 million
+- [data_fact] Tokyo population: 33 million (including Saitama, Chiba, and Kanagawa prefectures)
+- [data_fact] Megacities: Defined as cities with at least 10 million inhabitants
+- Q: Discuss the socio-economic implications of rapid urbanisation in Asian megacities and the challenges of managing inclusive urban growth.
+
+**Over 68% SIR enumeration forms digitised: ECI - The Hindu** — GS2 › polity › elections ✅
+- Why: The Election Commission of India (ECI) reported that over 68% of enumeration forms for the Special Intensive Revision (SIR) of electoral rolls have been digitised across 12 States and UTs.
+- [data_fact] 34,86,60,338 enumeration forms digitised as of November 27, 2025
+- [data_fact] 99.33% (50,63,50,569) of total enumeration forms distributed
+- [place] Lakshadweep and Goa reported high digitisation rates of 99.9% and 89.77% respectively
+- [institution] Booth-level officers (BLOs) are responsible for collecting forms and uploading data to the ECI website
+- [data_fact] The enumeration phase is scheduled to run from November 4 to December 4
+- Q: Discuss the significance of digitising electoral rolls in ensuring the integrity of the democratic process and reducing electoral fraud in India.
+
