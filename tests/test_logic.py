@@ -195,3 +195,21 @@ class Grounding(unittest.TestCase):
     def test_fact_box_all_ungrounded_rejected(self):
         with self.assertRaises(InvalidOutput):
             self.note(fact_box="The fort was built in 1780 by Gond rulers in Madhya Pradesh.")
+
+
+class NoCutOffText(unittest.TestCase):
+    """Reviewer, 3 Oct: mains dimensions shipped cut mid-word with '…' (140-char clip)."""
+
+    def test_long_parts_are_dropped_or_cut_cleanly(self):
+        long_dim = "Federal friction between state regulatory autonomy and central rules " * 4
+        n = validate_notes({**GOOD, "mains_dimensions": [long_dim, "Enforcement gap: shortage of testing labs under the Act"],
+                            "fact_box": "First fact sentence here. " * 30})
+        self.assertEqual(n["mains_dimensions"], ["Enforcement gap: shortage of testing labs under the Act"])
+        self.assertTrue(n["fact_box"].endswith("."))
+        self.assertLessEqual(len(n["fact_box"]), 600)
+        for v in (n["why_in_news"], n["fact_box"], n["mains_question"], *n["mains_dimensions"], *[p["text"] for p in n["prelims_pointers"]]):
+            self.assertNotIn("…", v or "")
+
+    def test_overlong_why_rejected(self):
+        with self.assertRaises(InvalidOutput):
+            validate_notes({**GOOD, "why_in_news": "word " * 80})

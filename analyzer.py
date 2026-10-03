@@ -11,7 +11,7 @@ import time
 
 from syllabus import EXAM_TYPES, SYLLABUS, paper_of, prompt_tree
 
-PROMPT_VERSION = "v2.6"
+PROMPT_VERSION = "v2.7"
 MODEL_REPO = os.environ.get("UPSC_MODEL_REPO", "unsloth/gemma-4-12b-it-GGUF")
 MODEL_FILENAME = os.environ.get("UPSC_MODEL_FILE", "gemma-4-12b-it-Q4_K_M.gguf")
 MODEL_NAME = MODEL_FILENAME.rsplit(".", 1)[0]
@@ -209,7 +209,7 @@ Fields:
   species_environment; sci_tech; person_post = a constitutional or official post; data_fact = a number.
 - mains_question: one UPSC-style Mains question (e.g. "Critically examine ...", "Discuss ...") in <= 30 words,
   about the underlying issue or institution, never about a person's career or image.
-- mains_dimensions: 2-4 substantive, issue-specific analytical angles (8-20 words each) covering institutional bottlenecks, constitutional/legal conflicts, or policy trade-offs.
+- mains_dimensions: 2-4 substantive, issue-specific analytical angles (8-20 words, under 150 characters each) covering institutional bottlenecks, constitutional/legal conflicts, or policy trade-offs.
   * STRICT NEGATIVE RULE: DO NOT use generic one-phrase headings like "Way forward", "Challenges", "Significance", "Need for reforms", "Role of technology", "Way ahead", or "Impact on economy".
   * BAD (generic): "Challenges: implementation issues", "Role of technology in tracking", "Way forward: better funding".
   * GOOD (specific): "Enforcement gap: Shortage of food safety officers and accredited testing labs under IMS Act", "Federal friction: State regulatory autonomy vs Central guidelines", "Supply chain bottleneck: High import reliance on raw wafer inputs despite PLI scheme incentives".
@@ -254,6 +254,20 @@ NOTES_SCHEMA = {
 
 class InvalidOutput(ValueError):
     pass
+
+
+def _fit(s, n, seps=(". ", "; ", ": ", " — ", ", ")):
+    """The whole text if it fits in n characters; otherwise the longest clean cut (a sentence or clause end in the
+    second half) — never mid-word and never with '…'. None if there is no clean cut."""
+    s = " ".join(str(s or "").split())
+    if len(s) <= n:
+        return s
+    head = s[:n]
+    for sep in seps:
+        k = head.rfind(sep)
+        if k >= n // 2:
+            return head[:k].rstrip(" ,;:—") + ("." if sep == ". " else "")
+    return None
 
 
 def _clip(s, n):
@@ -326,8 +340,10 @@ def validate_notes(data, src=None):
         raise InvalidOutput(f"unknown node: {node!r}")
     subject = NODE_OWNER[node]  # node keys are unique -> node decides subject/paper
     exam_type = data.get("exam_type") if data.get("exam_type") in EXAM_TYPES else "both"
-    why = _clip(data.get("why_in_news"), 220)
-    fact = _clip(data.get("fact_box"), 600)
+    why = _fit(data.get("why_in_news"), 220)
+    if why is None:
+        raise InvalidOutput("why_in_news is too long: one line under 200 characters")
+    fact = _fit(data.get("fact_box"), 600, seps=(". ",)) or ""
     if src is not None and len(fact) < 30 and any(d.startswith("fact:") for d in dropped):
         raise InvalidOutput("fact_box states what the article doesn't: "
                             + "; ".join(d.split("[", 1)[-1].rstrip("]") for d in dropped if d.startswith("fact:"))[:120])
@@ -341,10 +357,10 @@ def validate_notes(data, src=None):
             seen.add(n)
     pointers = []
     for p in data.get("prelims_pointers") or []:
-        t = _clip((p or {}).get("text"), 200)
+        t = _fit((p or {}).get("text"), 200) or ""  # too long to cut cleanly -> dropped below
         if len(t) >= 5:
             pointers.append({"type": p.get("type") if p.get("type") in POINTER_TYPES else "data_fact", "text": t})
-    dedupe = lambda xs, n, lim: list(dict.fromkeys(_clip(x, n) for x in (xs or []) if str(x).strip()))[:lim]
+    dedupe = lambda xs, n, lim: [x for x in dict.fromkeys(_fit(x, n) for x in (xs or []) if str(x).strip()) if x][:lim]
     sec_crime_re = re.compile(
         r"\b(rape|rapist|pocso|sexual(?:ly)? (?:assault|harass|abuse)|molest|minor(?:'s)? (?:rape|assault)|"
         r"dowry|domestic violence)\b", re.I
@@ -366,7 +382,7 @@ def validate_notes(data, src=None):
 
     clean_dims = []
     for d in (data.get("mains_dimensions") or []):
-        cleaned_d = _clip(d, 140)
+        cleaned_d = _fit(d, 160)  # a dimension that can't be cut cleanly is dropped, never shown cut off
         if not cleaned_d:
             continue
         stripped = re.sub(
@@ -378,7 +394,7 @@ def validate_notes(data, src=None):
             continue
         clean_dims.append(stripped)
 
-    final_dims = list(dict.fromkeys(clean_dims))[:4] if clean_dims else dedupe(data.get("mains_dimensions"), 120, 4)
+    final_dims = list(dict.fromkeys(clean_dims))[:4] if clean_dims else dedupe(data.get("mains_dimensions"), 160, 4)
 
     return {
         "exam_type": exam_type,
@@ -389,7 +405,7 @@ def validate_notes(data, src=None):
         "why_in_news": why,
         "fact_box": fact,
         "prelims_pointers": pointers[:5],
-        "mains_question": _clip(data.get("mains_question"), 260) or None,
+        "mains_question": _fit(data.get("mains_question"), 260, seps=("? ", ". ")) or None,
         "mains_dimensions": final_dims,
         "keywords": dedupe(data.get("keywords"), 40, 6),
         "dropped": dropped,  # what the grounding check removed (not stored; for logs and the eval)
