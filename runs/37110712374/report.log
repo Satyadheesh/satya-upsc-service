@@ -105,3 +105,5 @@ v1 baseline: false positives 64%, recall 82%. v2.0: FP 1%, recall 27%. v2.1: FP 
 - [data_fact] The enumeration phase is scheduled to run from November 4 to December 4
 - Q: Discuss the significance of digitising electoral rolls in ensuring the integrity of the democratic process and reducing electoral fraud in India.
 
+
+Approved v2.7|gemma-4-12b-it-Q4_K_M for production.
