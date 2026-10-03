@@ -10,7 +10,8 @@ import time
 
 import libsql_client
 
-from analyzer import MODEL_NAME, PROMPT_VERSION
+from analyzer import MODEL_NAME, NODE_CHECK, NODE_OWNER, PROMPT_VERSION, checked_node
+from syllabus import paper_of
 from selection import MAX_ATTEMPTS, is_done, make_shards, prefilter
 
 MAIN_DB_URL = os.environ.get("SATYA_DB_URL")
@@ -48,6 +49,34 @@ def in_query(c, sql_prefix, ids, extra_args=()):
 def get_meta(c, key, default=None):
     r = c.execute("SELECT value FROM upsc_meta WHERE key = ?", [key]).rows
     return r[0][0] if r else default
+
+
+def retag_once(upsc_c, now, marker="retag_nodes_v1"):
+    """One-time: notes of the last REDO_DAYS days filed under an over-used node (analyzer.NODE_CHECK) that say
+    nothing about it move to their secondary node / Infrastructure, as new notes do. Few rows, cheap."""
+    if get_meta(upsc_c, marker):
+        return
+    ph = ",".join("?" * len(NODE_CHECK))
+    rows = upsc_c.execute(f"SELECT article_id, syllabus_node, secondary, why_in_news, fact_box, keywords FROM upsc_articles "
+                          f"WHERE published_at >= ? AND syllabus_node IN ({ph})",
+                          [now - REDO_DAYS * 86400, *NODE_CHECK]).rows
+    moved = 0
+    for aid, node, sec, why, fact, kws in rows:
+        try:
+            secondary = [x for x in json.loads(sec or "[]") if isinstance(x, dict) and x.get("node") in NODE_OWNER]
+            words = " ".join(k for k in json.loads(kws or "[]") if isinstance(k, str))
+        except ValueError:
+            secondary, words = [], ""
+        new, rest = checked_node(node, secondary, f"{why} {fact} {words}")
+        if new != node:
+            subj = NODE_OWNER[new]
+            rest = [x for x in rest if NODE_OWNER.get(x.get("node")) != subj]
+            upsc_c.execute("UPDATE upsc_articles SET syllabus_node = ?, subject = ?, gs_paper = ?, secondary = ?, updated_at = ? "
+                           "WHERE article_id = ?", [new, subj, paper_of(subj), json.dumps(rest), now, int(aid)])
+            moved += 1
+            print(f"retag {aid}: {node} -> {new}")
+    upsc_c.execute("INSERT OR REPLACE INTO upsc_meta (key, value) VALUES (?, ?)", [marker, str(now)])
+    print(f"retag: {moved} of {len(rows)} notes moved")
 
 
 def main():
@@ -112,6 +141,11 @@ def main():
                 batch.append(aid)
             taken.add(aid)
         return last
+
+    try:
+        retag_once(upsc_c, now)
+    except Exception as e:  # never block selection on this
+        print(f"retag skipped: {e}")
 
     # (1b) rewrite recent notes written by an older prompt (gate skipped: the stored score is kept).
     # Stops reading once every note of the window is on the current version (upsc_meta 'redo_done').

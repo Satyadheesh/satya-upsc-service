@@ -252,6 +252,33 @@ NOTES_SCHEMA = {
 }
 
 
+# Nodes the model over-uses: a note filed there must say something about the topic, else it moves to its
+# secondary node, or to Infrastructure for transport news (e.g. a Vande Bharat speed upgrade was filed under
+# 'Nuclear & new energy technology').
+NODE_CHECK = {
+    "energy_nuclear": re.compile(r"\b(?:nuclear|reactors?|uranium|thorium|energy|power|electricity|solar|wind|hydrogen|"
+                                 r"renewables?|batter(?:y|ies)|grid|fuels?|coal|oil|gas|lng|biofuels?|ethanol|emissions?|"
+                                 r"carbon|climate|petroleum|crude)\b", re.I),
+    "it_ai": re.compile(r"\b(?:ai|artificial intelligence|digital\w*|cyber\w*|software|semiconductors?|chips?|data|"
+                        r"internet|comput\w+|technolog\w+|tech|it|quantum|3d|apps?|online|robot\w*|algorithms?|"
+                        r"telecom|5g|6g|deepfakes?|startups?)\b", re.I),
+}
+TRANSPORT_RE = re.compile(r"\b(?:rail\w*|trains?|bridges?|highways?|roads?|expressways?|ports?|airports?|metro|"
+                          r"tunnels?|vande bharat)\b", re.I)
+
+
+def checked_node(node, secondary, text):
+    """(node, secondary) after the NODE_CHECK sanity check on `text` (title + why-in-news + facts)."""
+    pat = NODE_CHECK.get(node)
+    if not pat or pat.search(text or ""):
+        return node, secondary
+    if secondary:
+        return secondary[0]["node"], secondary[1:]
+    if TRANSPORT_RE.search(text or "") and "infrastructure" in NODE_OWNER:
+        return "infrastructure", secondary
+    return node, secondary
+
+
 class InvalidOutput(ValueError):
     pass
 
@@ -355,6 +382,9 @@ def validate_notes(data, src=None):
         if n in NODE_OWNER and n not in seen and NODE_OWNER[n] != subject:
             secondary.append({"subject": NODE_OWNER[n], "node": n})
             seen.add(n)
+    node, secondary = checked_node(node, secondary, f"{src.text[:300] if src is not None else ''} {why} {fact}")
+    subject = NODE_OWNER[node]
+    secondary = [x for x in secondary if x["subject"] != subject]
     pointers = []
     for p in data.get("prelims_pointers") or []:
         t = _fit((p or {}).get("text"), 200) or ""  # too long to cut cleanly -> dropped below
