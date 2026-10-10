@@ -1,0 +1,117 @@
+name: UPSC Eval
+
+# Runs automatically when the prompt/model/eval set changes, or by hand.
+# A passing run approves the prompt version; the pipeline only runs approved prompts.
+on:
+  workflow_dispatch:
+    inputs:
+      reuse_run:
+        description: 'Skip the model and re-score the shard outputs of this earlier run id'
+        required: false
+        default: ''
+      model_repo:
+        description: 'Compare another model (HF repo). Comparison runs never approve for production.'
+        required: false
+        default: ''
+      model_file:
+        description: 'GGUF file in that repo'
+        required: false
+        default: ''
+
+concurrency:
+  group: upsc-eval-${{ github.event.inputs.model_file || 'default' }}
+  cancel-in-progress: true
+
+env:
+  CORE_TOKEN: ${{ secrets.CORE_TOKEN }}
+  PYTHONPATH: ${{ github.workspace }}/.ci
+  SATYA_UPSC_DB_URL: ${{ secrets.SATYA_UPSC_DB_URL }}
+  SATYA_UPSC_DB_TOKEN: ${{ secrets.SATYA_UPSC_DB_TOKEN }}
+  # production model (keep in sync with upsc_pipeline.yml); dispatch inputs override for comparisons
+  UPSC_MODEL_REPO: ${{ github.event.inputs.model_repo || 'unsloth/gemma-4-12b-it-GGUF' }}
+  UPSC_MODEL_FILE: ${{ github.event.inputs.model_file || 'gemma-4-12b-it-Q4_K_M.gguf' }}
+  APPROVE: ${{ github.event.inputs.model_file == '' && '--approve' || '' }}
+
+jobs:
+  eval:
+    if: ${{ !github.event.inputs.reuse_run }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      max-parallel: 10
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository }}-core
+          token: ${{ secrets.CORE_TOKEN }}
+      - name: Free disk for model weights
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL && df -h /
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-upsc-${{ hashFiles('requirements.txt') }}
+      - uses: actions/cache@v4
+        with:
+          path: models
+          key: gguf-${{ env.UPSC_MODEL_FILE }}
+      - run: pip install -r requirements.txt --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
+      - run: python eval/run_eval.py --shard ${{ matrix.shard }}/10 --out eval_out/${{ matrix.shard }}.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: eval-${{ matrix.shard }}
+          path: eval_out/${{ matrix.shard }}.json
+
+  report:
+    needs: eval
+    # after a finished eval, or when re-scoring an earlier run (eval skipped); not after a cancel
+    if: ${{ !cancelled() && (needs.eval.result == 'success' || github.event.inputs.reuse_run != '') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository }}-core
+          token: ${{ secrets.CORE_TOKEN }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - uses: actions/download-artifact@v4
+        with:
+          path: eval_out
+          merge-multiple: true
+          run-id: ${{ github.event.inputs.reuse_run || github.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Migrate schema (idempotent)
+        shell: bash
+        run: python migrate.py 2>&1 | tee migrate.log
+      - name: Report and approve
+        shell: bash
+        run: python eval/report.py eval_out/*.json $APPROVE --md eval_report.md 2>&1 | tee report.log
+      # Publish the report + raw shard outputs on the eval-reports branch (readable without log access)
+      - name: Publish report
+        if: ${{ always() }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN: ${{ github.run_id }}
+        run: |
+          set -e
+          rm -rf /tmp/pub && mkdir -p /tmp/pub
+          cp -r eval_out migrate.log report.log /tmp/pub/ 2>/dev/null || true
+          if [ -f eval_report.md ]; then cp eval_report.md /tmp/pub/; else { echo "report did not render"; tail -40 report.log 2>/dev/null; } > /tmp/pub/eval_report.md; fi
+          rm -rf /tmp/wt && mkdir /tmp/wt && cd /tmp/wt && git init -q
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add origin "https://x-access-token:${CORE_TOKEN}@github.com/${GITHUB_REPOSITORY}-core.git"
+          if git fetch -q --depth 1 origin eval-reports; then git checkout -q -b eval-reports FETCH_HEAD; else git checkout -q --orphan eval-reports; fi
+          find . -mindepth 1 -maxdepth 1 ! -name .git ! -name runs -exec rm -rf {} +
+          mkdir -p "runs/$RUN" && cp -r /tmp/pub/* "runs/$RUN"/ && cp /tmp/pub/eval_report.md latest.md
+          git add -A && git commit -qm "eval report run $RUN (${GITHUB_SHA::7})" && git push -q origin HEAD:eval-reports
