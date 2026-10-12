@@ -1,8 +1,7 @@
 name: UPSC Analysis Pipeline
 
+# Started every 6 hours by the orchestrator (satya-upsc-reports); keeps re-starting itself while there is backlog.
 on:
-  schedule:
-    - cron: '20,50 * * * *'
   workflow_dispatch:
     inputs:
       batch_size:
@@ -103,7 +102,7 @@ jobs:
         run: python upsc_pipeline.py --ids "${{ matrix.shard }}"
 
   # Keep going while there is backlog: start the next run as soon as this one finishes.
-  # (workflow_dispatch from GITHUB_TOKEN is allowed to trigger workflows; the schedule is only a fallback.)
+  # (workflow_dispatch from GITHUB_TOKEN is allowed to trigger workflows.)
   chain:
     needs: [setup, analyze_articles]
     if: ${{ !cancelled() && needs.setup.outputs.more == 'true' && needs.analyze_articles.result == 'success' }}
@@ -117,3 +116,16 @@ jobs:
           gh workflow run upsc_pipeline.yml --repo "$GITHUB_REPOSITORY" --ref main \
             -f batch_size='${{ github.event.inputs.batch_size || '180' }}' \
             -f lookback_days='${{ github.event.inputs.lookback_days || '365' }}'
+
+  # Backlog done: the orchestrator starts the jobs that use the new notes (study kit, Hindi).
+  notify:
+    needs: [setup, analyze_articles]
+    if: ${{ !cancelled() && needs.setup.outputs.more != 'true' && needs.analyze_articles.result == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Tell the orchestrator (it starts what depends on this job)
+        env:
+          GH_TOKEN: ${{ secrets.DISPATCH_TOKEN }}
+        run: |
+          gh workflow run orchestrator.yml --repo Satyadheesh/satya-upsc-reports --ref main \
+            -f event='notes-done:${{ github.run_id }}' || echo "::warning::could not reach the orchestrator; its hourly check will catch up"
