@@ -25,8 +25,8 @@ concurrency:
 env:
   CORE_TOKEN: ${{ secrets.CORE_TOKEN }}
   PYTHONPATH: ${{ github.workspace }}/.ci
-  SATYA_UPSC_DB_URL: ${{ secrets.SATYA_UPSC_DB_URL }}
-  SATYA_UPSC_DB_TOKEN: ${{ secrets.SATYA_UPSC_DB_TOKEN }}
+  SATYA_UPSC_DB_URL: ${{ secrets.NEW_UPSC_DB_URL }}
+  SATYA_UPSC_DB_TOKEN: ${{ secrets.NEW_UPSC_DB_TOKEN }}
   # production model (keep in sync with upsc_pipeline.yml); dispatch inputs override for comparisons
   UPSC_MODEL_REPO: ${{ github.event.inputs.model_repo || 'unsloth/gemma-4-12b-it-GGUF' }}
   UPSC_MODEL_FILE: ${{ github.event.inputs.model_file || 'gemma-4-12b-it-Q4_K_M.gguf' }}
